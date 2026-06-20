@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""
+Main pipeline entrypoint.
+
+Current scope: topic -> script (outline + dialogue) -> TTS audio per line.
+(Assembly into one file + video muxing are later stages, not yet built.)
+
+Usage:
+    python run_pipeline.py --topic "The history of mechanical keyboards"
+    python run_pipeline.py --topic "..." --job-id my_custom_id
+    python run_pipeline.py --resume my_custom_id
+
+Requires:
+    export GEMINI_API_KEY="your-key-here"
+"""
+
+import argparse
+import re
+import sys
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+from core.config_loader import load_config, load_speakers, PROJECT_ROOT
+from core.provider_factory import get_script_generator, get_tts_engine
+from core.state_db import JobStateDB
+from core.logging_setup import get_job_logger
+from core.pipeline.script_stage import run_script_stage
+from core.pipeline.tts_stage import run_tts_stage
+
+
+def slugify(text: str, max_len: int = 40) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug[:max_len].strip("-")
+
+
+def make_job_id(topic: str) -> str:
+    date_str = datetime.now().strftime("%Y%m%d")
+    slug = slugify(topic)
+    short_uuid = uuid.uuid4().hex[:6]
+    return f"{date_str}_{slug}_{short_uuid}"
+
+
+def run_job(topic: str, job_id: str, config: dict, speakers: dict):
+    jobs_dir = PROJECT_ROOT / config["paths"]["jobs_dir"]
+    job_dir = jobs_dir / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    logs_dir = PROJECT_ROOT / config["paths"]["logs_dir"]
+    log = get_job_logger(job_id, str(logs_dir))
+
+    state_db_path = PROJECT_ROOT / config["paths"]["state_db"]
+    state_db = JobStateDB(str(state_db_path))
+
+    log.info(f"=== Job {job_id} ===")
+    log.info(f"Topic: {topic}")
+
+    state_db.create_job(job_id, topic)
+    state_db.set_job_status(job_id, "in_progress")
+
+    try:
+        # ---- Stage: Script generation ----
+        if state_db.is_stage_completed(job_id, "script"):
+            log.info("Stage [script] already completed, loading existing script.")
+            import json
+            from core.interfaces import DialogueLine
+            with open(job_dir / "02_script.json") as f:
+                lines = [DialogueLine.from_dict(d) for d in json.load(f)]
+        else:
+            state_db.set_stage_status(job_id, "script", "in_progress")
+            try:
+                script_generator = get_script_generator(config)
+                lines = run_script_stage(
+                    job_dir=job_dir,
+                    topic=topic,
+                    script_generator=script_generator,
+                    speakers=speakers,
+                    sg_config=config["script_generation"],
+                    log=log,
+                )
+                state_db.set_stage_status(job_id, "script", "completed")
+            except Exception as e:
+                state_db.set_stage_status(job_id, "script", "failed", error_msg=str(e))
+                raise
+
+        # ---- Stage: TTS synthesis ----
+        if state_db.is_stage_completed(job_id, "tts"):
+            log.info("Stage [tts] already completed, skipping.")
+        else:
+            state_db.set_stage_status(job_id, "tts", "in_progress")
+            try:
+                tts_engine = get_tts_engine(config)
+                tts_results = run_tts_stage(
+                    job_dir=job_dir,
+                    job_id=job_id,
+                    lines=lines,
+                    tts_engine=tts_engine,
+                    speakers=speakers,
+                    state_db=state_db,
+                    log=log,
+                )
+                failed = [r for r in tts_results if not r["success"]]
+                if failed:
+                    state_db.set_stage_status(
+                        job_id, "tts", "failed",
+                        error_msg=f"{len(failed)} line(s) failed synthesis"
+                    )
+                    log.error(
+                        f"TTS stage finished with {len(failed)} failed line(s). "
+                        f"Re-run with --resume {job_id} to retry just those lines."
+                    )
+                else:
+                    state_db.set_stage_status(job_id, "tts", "completed")
+            except Exception as e:
+                state_db.set_stage_status(job_id, "tts", "failed", error_msg=str(e))
+                raise
+
+        state_db.set_job_status(job_id, "completed")
+        log.info(f"=== Job {job_id} finished ===")
+        log.info(f"Script: {job_dir / '02_script.json'}")
+        log.info(f"Audio lines: {job_dir / '03_audio_lines'}")
+
+    except Exception as e:
+        state_db.set_job_status(job_id, "failed")
+        log.error(f"Job failed: {e}")
+        raise
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Podcast automation pipeline")
+    parser.add_argument("--topic", type=str, help="Episode topic")
+    parser.add_argument("--job-id", type=str, default=None,
+                         help="Custom job ID (default: auto-generated from topic + date)")
+    parser.add_argument("--resume", type=str, default=None,
+                         help="Resume an existing job by ID (topic is read from state DB)")
+    args = parser.parse_args()
+
+    config = load_config()
+    speakers = load_speakers()
+
+    if args.resume:
+        state_db_path = PROJECT_ROOT / config["paths"]["state_db"]
+        state_db = JobStateDB(str(state_db_path))
+        job = state_db.get_job(args.resume)
+        if not job:
+            print(f"No job found with id: {args.resume}")
+            sys.exit(1)
+        run_job(topic=job["topic"], job_id=args.resume, config=config, speakers=speakers)
+        return
+
+    if not args.topic:
+        print("Error: --topic is required (or use --resume <job_id>)")
+        sys.exit(1)
+
+    job_id = args.job_id or make_job_id(args.topic)
+    run_job(topic=args.topic, job_id=job_id, config=config, speakers=speakers)
+
+
+if __name__ == "__main__":
+    main()

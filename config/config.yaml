@@ -1,0 +1,53 @@
+# =============================================================================
+# Podcast Automation — Main Config
+# =============================================================================
+# This file controls which providers are active and how generation behaves.
+# Switching from free -> paid later = change the "active" values below.
+# Nothing else in the codebase needs to change.
+
+providers:
+  script_generator: "gemini"      # options: "gemini" (later: "claude", "openai")
+  tts_engine: "kokoro"            # options: "kokoro" (later: "elevenlabs")
+
+# -----------------------------------------------------------------------------
+# Script generation settings
+# -----------------------------------------------------------------------------
+script_generation:
+  gemini:
+    model: "gemini-2.5-flash"     # fast + generous free tier; swap to gemini-1.5-pro for higher quality
+    temperature: 1.0              # higher = more natural/varied dialogue, less robotic repetition
+    max_output_tokens: 8192
+
+  # Episode shape
+  target_duration_minutes: 30
+  num_segments: 6                 # script generated in chunks of ~5 min each
+  words_per_minute: 150           # used to estimate target word count per segment (spoken pace)
+
+  # Anti-repetition safeguards
+  max_retries_per_segment: 3
+  forbidden_phrases:               # phrases the model tends to overuse — checked post-generation
+    - "that's such a great point"
+    - "absolutely"
+    - "i couldn't agree more"
+    - "great question"
+
+# -----------------------------------------------------------------------------
+# TTS settings
+# -----------------------------------------------------------------------------
+tts:
+  kokoro:
+    sample_rate: 24000
+    speed: 1.0
+    lang_code: "a"                # "a" = American English (see kokoro docs for other langs)
+
+  # Pause durations inserted during assembly (stage 2, not built yet — kept here for later)
+  pause_between_turns_ms: 400
+  pause_between_segments_ms: 900
+
+# -----------------------------------------------------------------------------
+# Paths
+# -----------------------------------------------------------------------------
+paths:
+  jobs_dir: "jobs"
+  state_db: "state/jobs.db"
+  logs_dir: "logs"
