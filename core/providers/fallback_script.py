@@ -23,6 +23,14 @@ Behavior:
 """
 
 from core.interfaces import ScriptGenerator, OutlineSegment, DialogueLine
+from core.providers.provider_errors import classify_provider_error
+
+_ERROR_HINTS = {
+    "quota": "quota/rate-limit — next provider in chain",
+    "transient": "transient API overload — next provider in chain",
+    "config": "configuration/model mismatch — next provider in chain",
+    "other": "unexpected failure — next provider in chain",
+}
 
 
 class FallbackScriptGenerator(ScriptGenerator):
@@ -43,6 +51,11 @@ class FallbackScriptGenerator(ScriptGenerator):
         else:
             print(msg)
 
+    def _format_failure(self, name: str, exc: Exception) -> str:
+        category = classify_provider_error(exc)
+        hint = _ERROR_HINTS.get(category, _ERROR_HINTS["other"])
+        return f"  Provider '{name}' failed [{category}]: {exc} ({hint})"
+
     def _call_with_fallback(self, method_name: str, *args, **kwargs):
         last_error = None
         start_index = self._active_index
@@ -60,9 +73,9 @@ class FallbackScriptGenerator(ScriptGenerator):
                 return result
             except Exception as e:
                 last_error = e
-                self._log(f"  Provider '{name}' failed: {e}", "warning")
+                self._log(self._format_failure(name, e), "warning")
                 if i + 1 < len(self.providers):
-                    self._log(f"  Trying next provider in fallback chain...", "warning")
+                    self._log("  Trying next provider in fallback chain...", "warning")
 
         raise RuntimeError(
             f"All {len(self.providers)} script generation provider(s) failed. "

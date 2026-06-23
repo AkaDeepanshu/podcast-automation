@@ -184,26 +184,29 @@ providers:
 script_generation:
   fallback_chain:
     - "gemini"
+    - "gemini_lite"
     - "groq"
 ```
 
 How it behaves:
-- Tries Gemini first. If a call fails with a quota/rate-limit error
-  (`RESOURCE_EXHAUSTED`, including both a permanently-zero quota from a
-  deprecated model and a daily cap that's merely exhausted for today), it
-  automatically falls back to Groq.
+- Tries Gemini (`gemini-2.5-flash`) first. On quota, overload (503), or other
+  failure after that provider's internal retries, it falls through to
+  `gemini_lite` (`gemini-2.5-flash-lite`, separate quota pool, higher RPD),
+  then Groq.
 - Once a fallback succeeds, **the run sticks with it** for the rest of that
-  episode — it won't bounce back to Gemini mid-episode (which would
-  otherwise waste calls retrying an exhausted provider, and could cause
+  episode — it won't bounce back to an earlier provider mid-episode (which
+  would otherwise waste calls retrying an exhausted provider, and could cause
   jarring dialogue-style shifts mid-script).
 - Groq (https://console.groq.com) is free, no credit card, and its
-  free-tier daily request limits are typically far higher than Gemini's,
-  since it monetizes via paid tiers/hardware speed rather than gating the
-  free tier hard. Quality is somewhat lower than Gemini (open-weight Llama
-  vs. Gemini), but for a fallback that only kicks in when Gemini is
-  exhausted, that's a reasonable tradeoff.
+  free-tier daily request limits are typically far higher than Gemini's.
+  The default Groq model is `openai/gpt-oss-20b`, which supports Groq
+  **Structured Outputs** (`json_schema`). Older Llama models (e.g.
+  `llama-3.3-70b-versatile`) do **not** support `json_schema` — use
+  `structured_output_mode: "json_object"` or `"auto"` in config if you
+  switch to one of those.
 - If every provider in the chain fails, the script stage fails with a
-  clear error listing what was tried.
+  clear error listing what was tried (including error category:
+  quota / transient / config).
 
 **Pre-emptive daily budget check**: each provider also tracks its own call
 count locally (`state/provider_usage.db`) against a configurable
@@ -221,11 +224,13 @@ single-provider path still works exactly as before.
 
 **Other free script-generation options** worth knowing about, if you want
 to extend the chain further:
-- `gemini-2.5-flash-lite` — same Gemini infra, typically higher free RPD
-  than `gemini-2.5-flash`, slightly lower quality. Can be added as another
-  `gemini` config + provider instance.
-- Other Groq-hosted free models (`llama-3.1-8b-instant`, etc.) — swap
-  `script_generation.groq.model` in config.yaml.
+- `gemini-2.5-flash-lite` — already wired as `gemini_lite` in the default
+  fallback chain; higher free RPD than flash, slightly lower quality.
+- Groq Structured Outputs models — `openai/gpt-oss-20b` (default),
+  `openai/gpt-oss-120b`, `meta-llama/llama-4-scout-17b-16e-instruct`.
+  See https://console.groq.com/docs/structured-outputs#supported-models.
+  For models without `json_schema` support, set
+  `script_generation.groq.structured_output_mode` to `json_object` or `auto`.
 - A local model via Ollama would also fit the existing `ScriptGenerator`
   interface if you want a fully offline option later, at the cost of
   needing a capable enough local machine and writing one more provider
@@ -272,8 +277,13 @@ fill the gap once the retry succeeds.
 `providers.script_generator` is set to `"fallback_chain"` in `config.yaml`
 (not just `"gemini"`), and that `GROQ_API_KEY` is set in `.env`. See §6 for
 how the fallback chain works. If you're still hitting limits with the
-chain active, check the job log — it'll show which provider was tried and
-why it fell back.
+chain active, check the job log — it'll show which provider was tried, the
+error category (`quota`, `transient`, `config`), and why it fell back.
+
+**Groq "does not support response format json_schema"** — your configured
+Groq model doesn't support Structured Outputs. Either switch to
+`openai/gpt-oss-20b` in `script_generation.groq.model` (recommended), or set
+`structured_output_mode: "auto"` to downgrade to JSON-object mode.
 
 **Script generation feels repetitive** — tune
 `script_generation.forbidden_phrases` in `config.yaml`, or increase

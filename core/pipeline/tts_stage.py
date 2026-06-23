@@ -7,10 +7,41 @@ call) and tracks completion per-line in SQLite. This means a crash at line
 length where a full run is hundreds of TTS calls.
 """
 
+import re
 from pathlib import Path
 
 from core.interfaces import TTSEngine, DialogueLine
 from core.state_db import JobStateDB
+
+
+def sanitize_for_tts(text: str) -> str:
+    """
+    Strips markdown emphasis/formatting artifacts that LLMs sometimes add
+    for written-text emphasis (*word*, _word_, **word**) but that a TTS
+    engine has no concept of — it just reads the literal symbol characters
+    out loud (e.g. "*focused*" becomes "asterisk focused asterisk").
+
+    This is a backstop: the generation prompt already asks the model not
+    to use markdown, but LLMs don't follow every instruction every time,
+    so this catches what slips through before it ever reaches the TTS
+    engine. Applied only at synthesis time — the original script JSON is
+    left untouched as the model actually wrote it.
+    """
+    # Bold/italic markers: **word**, *word*, __word__, _word_
+    # Applied narrowest-first so **word** doesn't leave stray single * behind.
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.+?)\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"\b_(.+?)_\b", r"\1", text)
+
+    # Markdown headers / bullet markers occasionally leaking into dialogue
+    text = re.sub(r"^#+\s*", "", text)
+    text = re.sub(r"^[-•]\s*", "", text)
+
+    # Collapse any double-spacing left behind by the above substitutions
+    text = re.sub(r"\s{2,}", " ", text).strip()
+
+    return text
 
 
 def run_tts_stage(
@@ -58,8 +89,24 @@ def run_tts_stage(
             })
             continue
 
+        # Synthesize a sanitized copy of the line, not the original object
+        # in place — keeps 02_script.json as the model actually wrote it.
+        sanitized_text = sanitize_for_tts(line.text)
+        if sanitized_text != line.text:
+            log.info(
+                f"  Line {line.line_index}: stripped markdown artifacts "
+                f"before synthesis (original text unchanged in script file)."
+            )
+        line_for_tts = DialogueLine(
+            speaker=line.speaker,
+            text=sanitized_text,
+            emotion=line.emotion,
+            segment_index=line.segment_index,
+            line_index=line.line_index,
+        )
+
         result = tts_engine.synthesize_line(
-            line=line,
+            line=line_for_tts,
             voice_id=voice_id,
             output_path=str(output_path),
         )

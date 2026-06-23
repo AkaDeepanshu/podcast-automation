@@ -13,3 +13,6 @@ numpy>=1.26.0
 # Audio assembly
 pydub>=0.25.1
 pyloudnorm>=0.1.1
+
+# Video
+Pillow>=11.0.0,<13.0.0

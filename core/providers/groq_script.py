@@ -8,8 +8,9 @@ tens of RPD), which makes it a strong fallback when Gemini's free quota is
 exhausted -- at the cost of somewhat lower dialogue quality from the
 open-weight model vs. Gemini's.
 
-Uses Structured Outputs (response_format={"type": "json_schema", ...}) for
-the same reliable JSON parsing guarantee as the Gemini provider.
+Uses Structured Outputs (response_format={"type": "json_schema", ...}) when
+the configured model supports it. Models without json_schema support can use
+json_object mode (see structured_output_mode in config.yaml).
 
 Requires env var: GROQ_API_KEY (free, no card, from https://console.groq.com)
 """
@@ -75,16 +76,43 @@ SCRIPT_JSON_SCHEMA = {
     },
 }
 
+OUTLINE_JSON_OBJECT_HINT = (
+    'Respond with a single JSON object: {"segments": [{"segment_number": 1, '
+    '"theme": "...", "beats": ["..."], "target_minutes": 5.0}, ...]}. '
+    "No markdown, no commentary — JSON only."
+)
+
+SCRIPT_JSON_OBJECT_HINT = (
+    'Respond with a single JSON object: {"lines": [{"speaker": "A"|"B", '
+    '"text": "...", "emotion": "neutral"}, ...]}. '
+    "No markdown, no commentary — JSON only."
+)
+
+
+def _is_unsupported_json_schema_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return (
+        "json_schema" in msg
+        or "response_format" in msg
+        or "does not support" in msg
+    )
+
 
 class GroqScriptGenerator(ScriptGenerator):
-    def __init__(self, model: str = "llama-3.3-70b-versatile", temperature: float = 1.0,
+    def __init__(self, model: str = "openai/gpt-oss-20b", temperature: float = 1.0,
                  max_output_tokens: int = 8192, api_key: str | None = None,
-                 usage_tracker=None, daily_limit: int = 0):
+                 usage_tracker=None, daily_limit: int = 0,
+                 structured_output_mode: str = "json_schema"):
         api_key = api_key or os.environ.get("GROQ_API_KEY")
         if not api_key:
             raise RuntimeError(
                 "GROQ_API_KEY not set. Get a free key (no card required) at "
                 "https://console.groq.com/keys and add it to .env"
+            )
+        if structured_output_mode not in ("json_schema", "json_object", "auto"):
+            raise ValueError(
+                f"structured_output_mode must be json_schema, json_object, or auto; "
+                f"got {structured_output_mode!r}"
             )
         self.client = Groq(api_key=api_key)
         self.model = model
@@ -92,10 +120,50 @@ class GroqScriptGenerator(ScriptGenerator):
         self.max_output_tokens = max_output_tokens
         self.usage_tracker = usage_tracker
         self.daily_limit = daily_limit
+        self.structured_output_mode = structured_output_mode
+        self._effective_output_mode = structured_output_mode
         self._usage_key = f"groq:{model}"
 
-    # -------------------------------------------------------------------
-    def _generate_json(self, prompt: str, json_schema: dict, max_retries: int = 3) -> dict:
+    def _should_fail_fast(self, exc: APIStatusError) -> bool:
+        """Permanent client errors should not be retried with backoff."""
+        if exc.status_code != 400:
+            return False
+        return _is_unsupported_json_schema_error(exc) or "invalid_request" in str(exc).lower()
+
+    def _call_api(self, prompt: str, json_schema: dict | None,
+                  json_object_hint: str) -> str:
+        mode = self._effective_output_mode
+        if mode == "auto":
+            mode = "json_schema"
+
+        messages = [{"role": "user", "content": prompt}]
+        if mode == "json_object":
+            messages = [
+                {"role": "system", "content": json_object_hint},
+                {"role": "user", "content": prompt},
+            ]
+            response_format = {"type": "json_object"}
+        else:
+            response_format = {"type": "json_schema", "json_schema": json_schema}
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=self.max_output_tokens,
+            response_format=response_format,
+        )
+        return response.choices[0].message.content
+
+    def _generate_json(self, prompt: str, json_schema: dict,
+                       json_object_hint: str, max_retries: int = 3) -> dict:
+        """Call Groq with structured or JSON-object output, retrying transient failures.
+
+        Pre-checks local daily usage tracking (if configured) before calling.
+        Fails fast (no retry) on rate-limit errors and permanent 400s.
+        In auto mode, downgrades from json_schema to json_object when the model
+        rejects schema mode.
+        """
         if self.usage_tracker and self.daily_limit > 0:
             if self.usage_tracker.is_near_daily_limit(self._usage_key, self.daily_limit):
                 raise RuntimeError(
@@ -105,49 +173,13 @@ class GroqScriptGenerator(ScriptGenerator):
                     f"skipping call to avoid a near-certain 429."
                 )
 
-        # Ensure the word "json" appears in the prompt — required by Groq when
-        # using response_format=json_object. Also helps steer open-weight models.
-        augmented_prompt = prompt
-        if "json" not in prompt.lower():
-            augmented_prompt = prompt + "\n\nRespond with a valid JSON object only."
-
         last_error = None
         for attempt in range(1, max_retries + 1):
             try:
-                # Prefer json_schema (Structured Outputs) — more reliable and
-                # does NOT require the word "json" in the prompt.
-                # Falls back to json_object if the model doesn't support it.
-                try:
-                    response = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=[{"role": "user", "content": augmented_prompt}],
-                        temperature=self.temperature,
-                        max_tokens=self.max_output_tokens,
-                        response_format={
-                            "type": "json_schema",
-                            "json_schema": {
-                                "name": json_schema["name"],
-                                "strict": False,  # strict=True is more limiting on llama models
-                                "schema": json_schema["schema"],
-                            },
-                        },
-                    )
-                except APIStatusError as schema_err:
-                    # Model doesn't support json_schema — fall back to json_object
-                    if schema_err.status_code in (400, 422):
-                        response = self.client.chat.completions.create(
-                            model=self.model,
-                            messages=[{"role": "user", "content": augmented_prompt}],
-                            temperature=self.temperature,
-                            max_tokens=self.max_output_tokens,
-                            response_format={"type": "json_object"},
-                        )
-                    else:
-                        raise
-
+                content = self._call_api(prompt, json_schema, json_object_hint)
                 if self.usage_tracker:
                     self.usage_tracker.record_call(self._usage_key)
-                return json.loads(response.choices[0].message.content)
+                return json.loads(content)
 
             except RateLimitError as e:
                 if self.usage_tracker:
@@ -159,19 +191,47 @@ class GroqScriptGenerator(ScriptGenerator):
 
             except APIStatusError as e:
                 last_error = e
+
+                if (
+                    self.structured_output_mode == "auto"
+                    and self._effective_output_mode != "json_object"
+                    and e.status_code == 400
+                    and _is_unsupported_json_schema_error(e)
+                ):
+                    print(
+                        f"  [groq] model '{self.model}' does not support json_schema — "
+                        f"downgrading to json_object mode for this run."
+                    )
+                    self._effective_output_mode = "json_object"
+                    continue
+
+                if self._should_fail_fast(e):
+                    raise RuntimeError(
+                        f"Groq model '{self.model}' rejected the request (non-retryable "
+                        f"{e.status_code}): {e}"
+                    ) from e
+
                 wait = 2 ** attempt
                 print(f"  [groq] attempt {attempt}/{max_retries} failed "
-                    f"(status {e.status_code}): {e}. Retrying in {wait}s...")
+                      f"(status {e.status_code}): {e}. Retrying in {wait}s...")
+                time.sleep(wait)
+
+            except json.JSONDecodeError as e:
+                last_error = e
+                wait = 2 ** attempt
+                print(f"  [groq] attempt {attempt}/{max_retries} failed: invalid JSON: {e}. "
+                      f"Retrying in {wait}s...")
                 time.sleep(wait)
 
             except Exception as e:
                 last_error = e
                 wait = 2 ** attempt
                 print(f"  [groq] attempt {attempt}/{max_retries} failed: {e}. "
-                    f"Retrying in {wait}s...")
+                      f"Retrying in {wait}s...")
                 time.sleep(wait)
 
         raise RuntimeError(f"Groq generation failed after {max_retries} attempts: {last_error}")
+
     # -------------------------------------------------------------------
     def generate_outline(
         self,
@@ -207,7 +267,7 @@ Make the progression feel natural: start with framing/context, build through
 detail and differing perspectives, and end with synthesis or takeaways.
 Avoid generic beats — be specific to the topic "{topic}"."""
 
-        data = self._generate_json(prompt, OUTLINE_JSON_SCHEMA)
+        data = self._generate_json(prompt, OUTLINE_JSON_SCHEMA, OUTLINE_JSON_OBJECT_HINT)
         segments = [OutlineSegment.from_dict(s) for s in data["segments"]]
         segments.sort(key=lambda s: s.segment_number)
         return segments
@@ -261,6 +321,13 @@ Requirements:
   agree/disagree
 - Do not include stage directions, sound effects, or narration — only
   spoken lines
+- Write plain spoken text only — NO markdown formatting of any kind
+  (no asterisks for emphasis, no underscores, no quotation marks around
+  words for emphasis). This text is sent directly to a text-to-speech
+  engine, which will read literal symbols like "*" out loud as words. If
+  you want to convey emphasis, do it through word choice or sentence
+  structure instead (e.g. "really" or "the most important thing", not
+  *asterisks* or _underscores_)
 - Each line should be a single speaker turn (don't combine both speakers
   in one entry)
 
@@ -268,7 +335,7 @@ For each line, give the speaker key ("A" or "B"), the text, and an emotion
 hint (one word, e.g. "curious", "amused", "thoughtful" — use "neutral" if
 nothing specific applies)."""
 
-        data = self._generate_json(prompt, SCRIPT_JSON_SCHEMA)
+        data = self._generate_json(prompt, SCRIPT_JSON_SCHEMA, SCRIPT_JSON_OBJECT_HINT)
         lines = []
         for raw in data["lines"]:
             lines.append(DialogueLine(

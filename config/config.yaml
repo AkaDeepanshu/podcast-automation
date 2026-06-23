@@ -18,6 +18,7 @@ script_generation:
   # when providers.script_generator is "fallback_chain".
   fallback_chain:
     - "gemini"
+    - "gemini_lite"
     - "groq"
 
   gemini:
@@ -34,11 +35,21 @@ script_generation:
     # is a local estimate, not authoritative.
     daily_limit: 18
 
+  gemini_lite:
+    model: "gemini-2.5-flash-lite"  # same Gemini infra, higher free RPD; used when flash is overloaded/quota-hit
+    temperature: 1.0
+    max_output_tokens: 8192
+    daily_limit: 0                  # separate quota pool from flash — disable pre-check by default
+
   groq:
-    model: "llama-3.3-70b-versatile"  # free tier, no card; check console.groq.com/settings/limits for current caps
+    model: "openai/gpt-oss-20b"     # supports Groq Structured Outputs (json_schema); see console.groq.com/docs/structured-outputs
     temperature: 1.0
     max_output_tokens: 8192
     daily_limit: 0                    # Groq's free RPD is much higher than Gemini's — disable pre-check by default
+    # json_schema = schema-enforced (requires a Structured Outputs model)
+    # json_object = valid JSON only (works on llama-3.3-70b-versatile etc., less reliable)
+    # auto = try json_schema first, downgrade to json_object if the model rejects json_schema
+    structured_output_mode: "json_schema"
 
   # Episode shape
   target_duration_minutes: 30
@@ -67,8 +78,12 @@ tts:
   pause_between_segments_ms: 900
 
 # -----------------------------------------------------------------------------
-# Paths
+# Video settings
 # -----------------------------------------------------------------------------
+video:
+  subtitle_font_size: 52
+  font_path: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+  crf: 23                 # H.264 quality (18=near-lossless, 28=smaller file, 23=good default)
 paths:
   jobs_dir: "jobs"
   state_db: "state/jobs.db"

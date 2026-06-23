@@ -28,6 +28,17 @@ def _build_single_script_provider(provider_name: str, config: dict, usage_tracke
             daily_limit=gemini_cfg.get("daily_limit", 0),
         )
 
+    if provider_name == "gemini_lite":
+        from core.providers.gemini_script import GeminiScriptGenerator
+        lite_cfg = sg_config["gemini_lite"]
+        return GeminiScriptGenerator(
+            model=lite_cfg["model"],
+            temperature=lite_cfg["temperature"],
+            max_output_tokens=lite_cfg["max_output_tokens"],
+            usage_tracker=usage_tracker,
+            daily_limit=lite_cfg.get("daily_limit", 0),
+        )
+
     if provider_name == "groq":
         from core.providers.groq_script import GroqScriptGenerator
         groq_cfg = sg_config["groq"]
@@ -37,6 +48,7 @@ def _build_single_script_provider(provider_name: str, config: dict, usage_tracke
             max_output_tokens=groq_cfg["max_output_tokens"],
             usage_tracker=usage_tracker,
             daily_limit=groq_cfg.get("daily_limit", 0),
+            structured_output_mode=groq_cfg.get("structured_output_mode", "json_schema"),
         )
 
     # Phase 2 stub:

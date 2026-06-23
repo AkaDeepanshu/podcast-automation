@@ -91,6 +91,9 @@ class GeminiScriptGenerator(ScriptGenerator):
         that's merely exhausted for today — backoff cannot fix either case
         within a single process run; only real time passing (or a different
         model/provider) helps.
+
+        Uses extra retries and longer backoff for 503 UNAVAILABLE (transient
+        overload), which is distinct from quota exhaustion.
         """
         if self.usage_tracker and self.daily_limit > 0:
             if self.usage_tracker.is_near_daily_limit(self._usage_key, self.daily_limit):
@@ -102,7 +105,11 @@ class GeminiScriptGenerator(ScriptGenerator):
                 )
 
         last_error = None
-        for attempt in range(1, max_retries + 1):
+        attempt = 0
+        max_attempts = max_retries
+
+        while attempt < max_attempts:
+            attempt += 1
             try:
                 response = self.client.models.generate_content(
                     model=self.model,
@@ -138,11 +145,19 @@ class GeminiScriptGenerator(ScriptGenerator):
                         f"Original error: {e}"
                     ) from e
 
-                wait = 2 ** attempt
-                print(f"  [gemini] attempt {attempt}/{max_retries} failed: {e}. "
+                is_transient_unavailable = (
+                    getattr(e, "code", None) == 503
+                    or "UNAVAILABLE" in str(e)
+                    or "high demand" in str(e).lower()
+                )
+                if is_transient_unavailable and max_attempts == max_retries:
+                    max_attempts = max_retries + 2
+
+                wait = (2 ** attempt) * (2 if is_transient_unavailable else 1)
+                print(f"  [gemini] attempt {attempt}/{max_attempts} failed: {e}. "
                       f"Retrying in {wait}s...")
                 time.sleep(wait)
-        raise RuntimeError(f"Gemini generation failed after {max_retries} attempts: {last_error}")
+        raise RuntimeError(f"Gemini generation failed after {max_attempts} attempts: {last_error}")
 
     # -------------------------------------------------------------------
     def generate_outline(
@@ -233,6 +248,13 @@ Requirements:
   agree/disagree
 - Do not include stage directions, sound effects, or narration — only
   spoken lines
+- Write plain spoken text only — NO markdown formatting of any kind
+  (no asterisks for emphasis, no underscores, no quotation marks around
+  words for emphasis). This text is sent directly to a text-to-speech
+  engine, which will read literal symbols like "*" out loud as words. If
+  you want to convey emphasis, do it through word choice or sentence
+  structure instead (e.g. "really" or "the most important thing", not
+  *asterisks* or _underscores_)
 - Each line should be a single speaker turn (don't combine both speakers
   in one entry)
 
