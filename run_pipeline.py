@@ -2,8 +2,9 @@
 """
 Main pipeline entrypoint.
 
-Current scope: topic -> script (outline + dialogue) -> TTS audio per line.
-(Assembly into one file + video muxing are later stages, not yet built.)
+Current scope: topic -> script (outline + dialogue) -> TTS audio per line
+-> assembled, mastered episode audio file.
+(Video muxing, topic queue, and cron wrapper are later stages, not yet built.)
 
 Usage:
     python run_pipeline.py --topic "The history of mechanical keyboards"
@@ -11,10 +12,11 @@ Usage:
     python run_pipeline.py --resume my_custom_id
 
 Requires:
-    export GEMINI_API_KEY="your-key-here"
+    GEMINI_API_KEY set in .env (copy .env.example to .env and fill it in)
 """
 
 import argparse
+import json
 import re
 import sys
 import uuid
@@ -25,8 +27,10 @@ from core.config_loader import load_config, load_speakers, PROJECT_ROOT
 from core.provider_factory import get_script_generator, get_tts_engine
 from core.state_db import JobStateDB
 from core.logging_setup import get_job_logger
+from core.interfaces import DialogueLine
 from core.pipeline.script_stage import run_script_stage
 from core.pipeline.tts_stage import run_tts_stage
+from core.pipeline.assembly_stage import run_assembly_stage
 
 
 def slugify(text: str, max_len: int = 40) -> str:
@@ -62,8 +66,6 @@ def run_job(topic: str, job_id: str, config: dict, speakers: dict):
         # ---- Stage: Script generation ----
         if state_db.is_stage_completed(job_id, "script"):
             log.info("Stage [script] already completed, loading existing script.")
-            import json
-            from core.interfaces import DialogueLine
             with open(job_dir / "02_script.json") as f:
                 lines = [DialogueLine.from_dict(d) for d in json.load(f)]
         else:
@@ -84,8 +86,13 @@ def run_job(topic: str, job_id: str, config: dict, speakers: dict):
                 raise
 
         # ---- Stage: TTS synthesis ----
+        tts_results_path = job_dir / "03_tts_results.json"
+        tts_had_failures = False
+
         if state_db.is_stage_completed(job_id, "tts"):
-            log.info("Stage [tts] already completed, skipping.")
+            log.info("Stage [tts] already completed, loading existing results.")
+            with open(tts_results_path) as f:
+                tts_results = json.load(f)
         else:
             state_db.set_stage_status(job_id, "tts", "in_progress")
             try:
@@ -99,8 +106,12 @@ def run_job(topic: str, job_id: str, config: dict, speakers: dict):
                     state_db=state_db,
                     log=log,
                 )
+                with open(tts_results_path, "w") as f:
+                    json.dump(tts_results, f, indent=2)
+
                 failed = [r for r in tts_results if not r["success"]]
                 if failed:
+                    tts_had_failures = True
                     state_db.set_stage_status(
                         job_id, "tts", "failed",
                         error_msg=f"{len(failed)} line(s) failed synthesis"
@@ -115,10 +126,68 @@ def run_job(topic: str, job_id: str, config: dict, speakers: dict):
                 state_db.set_stage_status(job_id, "tts", "failed", error_msg=str(e))
                 raise
 
-        state_db.set_job_status(job_id, "completed")
-        log.info(f"=== Job {job_id} finished ===")
+        # If we loaded an already-"failed"-but-present tts stage from a
+        # prior partial run, reflect that in the job-level summary too.
+        if state_db.get_stage_status(job_id, "tts") == "failed":
+            tts_had_failures = True
+
+        # ---- Stage: Audio assembly ----
+        # Runs even if some TTS lines failed — produces a best-effort episode
+        # with gaps noted, rather than blocking entirely on partial failures.
+        #
+        # Special case: if assembly previously completed but left gaps (per
+        # its manifest) and TTS no longer has failures (i.e. this is a resume
+        # after retrying failed lines), force a re-assembly so the
+        # previously-missing lines get included rather than leaving stale
+        # gaps in 04_final_audio.wav.
+        assembly_manifest_path = job_dir / "04_assembly_manifest.json"
+        assembly_previously_completed = state_db.is_stage_completed(job_id, "assembly")
+
+        force_reassembly = False
+        if assembly_previously_completed and not tts_had_failures and assembly_manifest_path.exists():
+            with open(assembly_manifest_path) as f:
+                prior_manifest = json.load(f)
+            if prior_manifest.get("skipped_line_indices"):
+                force_reassembly = True
+
+        if assembly_previously_completed and not force_reassembly:
+            log.info("Stage [assembly] already completed, skipping.")
+        else:
+            if force_reassembly:
+                log.info(
+                    "Re-running assembly: previous run had gaps and TTS "
+                    "retries since then appear to have resolved them."
+                )
+            state_db.set_stage_status(job_id, "assembly", "in_progress")
+            try:
+                final_audio_path = run_assembly_stage(
+                    job_dir=job_dir,
+                    job_id=job_id,
+                    lines=lines,
+                    tts_results=tts_results,
+                    assembly_config=config["tts"],
+                    log=log,
+                )
+                state_db.set_stage_status(job_id, "assembly", "completed")
+            except Exception as e:
+                state_db.set_stage_status(job_id, "assembly", "failed", error_msg=str(e))
+                raise
+
+        if tts_had_failures:
+            state_db.set_job_status(job_id, "completed_with_warnings")
+            log.warning(
+                f"=== Job {job_id} finished WITH WARNINGS === "
+                f"Some TTS lines failed — final audio has gaps at those points. "
+                f"See {tts_results_path} for which lines, or re-run "
+                f"--resume {job_id} to retry failed lines and re-assemble."
+            )
+        else:
+            state_db.set_job_status(job_id, "completed")
+            log.info(f"=== Job {job_id} finished ===")
+
         log.info(f"Script: {job_dir / '02_script.json'}")
         log.info(f"Audio lines: {job_dir / '03_audio_lines'}")
+        log.info(f"Final audio: {job_dir / '04_final_audio.wav'}")
 
     except Exception as e:
         state_db.set_job_status(job_id, "failed")

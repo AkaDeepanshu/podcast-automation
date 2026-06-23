@@ -61,8 +61,9 @@ SCRIPT_SCHEMA = {
 
 
 class GeminiScriptGenerator(ScriptGenerator):
-    def __init__(self, model: str = "gemini-2.0-flash", temperature: float = 1.0,
-                 max_output_tokens: int = 8192, api_key: str | None = None):
+    def __init__(self, model: str = "gemini-2.5-flash", temperature: float = 1.0,
+                 max_output_tokens: int = 8192, api_key: str | None = None,
+                 usage_tracker=None, daily_limit: int = 0):
         api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError(
@@ -73,10 +74,33 @@ class GeminiScriptGenerator(ScriptGenerator):
         self.model = model
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
+        self.usage_tracker = usage_tracker
+        self.daily_limit = daily_limit  # 0 = unknown/unset, no pre-check performed
+        self._usage_key = f"gemini:{model}"
 
     # -------------------------------------------------------------------
     def _generate_json(self, prompt: str, schema: dict, max_retries: int = 3) -> dict:
-        """Call Gemini with JSON-mode output, retrying on parse/API failure."""
+        """Call Gemini with JSON-mode output, retrying on transient API failure.
+
+        Pre-checks local daily usage tracking (if configured) before calling,
+        to avoid burning a near-certain-to-fail call once we know we're at
+        the daily cap from prior calls today.
+
+        Fails fast (no retry) on ANY quota-exhausted 429 (RESOURCE_EXHAUSTED),
+        whether it's a permanent zero-quota (deprecated model) or a daily cap
+        that's merely exhausted for today — backoff cannot fix either case
+        within a single process run; only real time passing (or a different
+        model/provider) helps.
+        """
+        if self.usage_tracker and self.daily_limit > 0:
+            if self.usage_tracker.is_near_daily_limit(self._usage_key, self.daily_limit):
+                raise RuntimeError(
+                    f"Gemini model '{self.model}' is at/near its tracked daily "
+                    f"limit ({self.usage_tracker.get_today_count(self._usage_key)}"
+                    f"/{self.daily_limit} calls today, per local tracking) — "
+                    f"skipping call to avoid a near-certain 429."
+                )
+
         last_error = None
         for attempt in range(1, max_retries + 1):
             try:
@@ -90,9 +114,30 @@ class GeminiScriptGenerator(ScriptGenerator):
                         response_schema=schema,
                     ),
                 )
+                if self.usage_tracker:
+                    self.usage_tracker.record_call(self._usage_key)
                 return json.loads(response.text)
             except Exception as e:
                 last_error = e
+
+                is_quota_exhausted = (
+                    getattr(e, "code", None) == 429
+                    and ("RESOURCE_EXHAUSTED" in str(e) or "limit:" in str(e))
+                )
+                if is_quota_exhausted:
+                    if self.usage_tracker:
+                        self.usage_tracker.record_call(self._usage_key)
+                    raise RuntimeError(
+                        f"Gemini model '{self.model}' quota exhausted "
+                        f"(RESOURCE_EXHAUSTED). This is either a permanently "
+                        f"zero free-tier quota (deprecated model) or today's "
+                        f"daily cap reached — retrying will not help within "
+                        f"this run. Check current free models at "
+                        f"https://ai.google.dev/gemini-api/docs/models and "
+                        f"your live limits at https://aistudio.google.com/rate-limit. "
+                        f"Original error: {e}"
+                    ) from e
+
                 wait = 2 ** attempt
                 print(f"  [gemini] attempt {attempt}/{max_retries} failed: {e}. "
                       f"Retrying in {wait}s...")

@@ -1,5 +1,6 @@
 # Script generation
 google-genai>=2.8.0
+groq>=1.4.0
 pyyaml>=6.0
 python-dotenv>=1.0.0
 
@@ -8,3 +9,7 @@ kokoro>=0.9.4
 soundfile>=0.12.1
 torch>=2.0.0
 numpy>=1.26.0
+
+# Audio assembly
+pydub>=0.25.1
+pyloudnorm>=0.1.1
