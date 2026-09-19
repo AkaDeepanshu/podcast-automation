@@ -12,7 +12,7 @@ class EpisodeConfigIn(BaseModel):
 class JobCreate(BaseModel):
     topic: str = Field(..., min_length=1)
     job_id: str | None = None
-    skip_video: bool = False
+    skip_video: bool = True
     config: EpisodeConfigIn | None = None
 
 
@@ -42,7 +42,7 @@ class EpisodeConfigOut(BaseModel):
     target_duration_minutes: int | None = None
     num_segments: int | None = None
     model: str | None = None
-    skip_video: bool = False
+    skip_video: bool = True
 
 
 class JobDetail(JobSummary):

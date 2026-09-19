@@ -8,7 +8,7 @@ unattended via cron.
 
 import sqlite3
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from contextlib import contextmanager
 
@@ -46,6 +46,18 @@ CREATE TABLE IF NOT EXISTS tts_lines (
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_ts(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        ts = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts
 
 
 class JobStateDB:
@@ -95,6 +107,48 @@ class JobStateDB:
                 "SELECT * FROM jobs WHERE status = 'in_progress'"
             ).fetchall()
             return [dict(r) for r in rows]
+
+    def mark_orphaned_in_progress_jobs(
+        self,
+        grace_minutes: int = 10,
+        error_msg: str = "orphaned_worker",
+    ) -> list[str]:
+        """
+        Mark in_progress jobs as failed when their last job/stage update is
+        older than grace_minutes (worker crash / killed process).
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=grace_minutes)
+        marked: list[str] = []
+        with self._connect() as conn:
+            jobs = conn.execute(
+                "SELECT * FROM jobs WHERE status = 'in_progress'"
+            ).fetchall()
+            for job in jobs:
+                job_id = job["job_id"]
+                stage_row = conn.execute(
+                    "SELECT MAX(updated_at) AS m FROM stages WHERE job_id = ?",
+                    (job_id,),
+                ).fetchone()
+                latest_raw = (
+                    stage_row["m"]
+                    if stage_row and stage_row["m"]
+                    else job["updated_at"]
+                )
+                latest = _parse_ts(latest_raw)
+                if latest is None or latest >= cutoff:
+                    continue
+                now = _now()
+                conn.execute(
+                    "UPDATE jobs SET status = ?, updated_at = ? WHERE job_id = ?",
+                    ("failed", now, job_id),
+                )
+                conn.execute(
+                    "UPDATE stages SET status = ?, error_msg = ?, updated_at = ? "
+                    "WHERE job_id = ? AND status = 'in_progress'",
+                    ("failed", error_msg, now, job_id),
+                )
+                marked.append(job_id)
+        return marked
 
     # -------------------------------------------------------------------
     # Stage-level

@@ -56,7 +56,7 @@ class TtsLine(Base):
 
 
 class EpisodeConfig(Base):
-    """Per-job config overrides from the UI (optional; pipeline still reads config.yaml)."""
+    """Per-job config overrides from the UI (applied in Celery via episode_overrides)."""
 
     __tablename__ = "episode_configs"
 
@@ -66,7 +66,7 @@ class EpisodeConfig(Base):
     target_duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     num_segments: Mapped[int | None] = mapped_column(Integer, nullable=True)
     model: Mapped[str | None] = mapped_column(String, nullable=True)
-    skip_video: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    skip_video: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     job: Mapped["Job"] = relationship(back_populates="episode_config")
 

@@ -9,7 +9,7 @@ Usage:
     python run_pipeline.py --topic "The history of mechanical keyboards"
     python run_pipeline.py --topic "..." --job-id my_custom_id
     python run_pipeline.py --resume my_custom_id
-    python run_pipeline.py --topic "..." --skip-video   # audio only, skip video stage
+    python run_pipeline.py --topic "..." --with-video   # include video stage (default: audio only)
 
 Requires:
     GEMINI_API_KEY set in .env (copy .env.example to .env and fill it in)
@@ -67,6 +67,12 @@ def run_job(
 
     log.info(f"=== Job {job_id} ===")
     log.info(f"Topic: {topic}")
+    sg = config.get("script_generation") or {}
+    log.info(
+        f"Config: segments={sg.get('num_segments')}, "
+        f"duration_min={sg.get('target_duration_minutes')}, "
+        f"skip_video={skip_video}"
+    )
 
     state_db.create_job(job_id, topic)
     state_db.set_job_status(job_id, "in_progress")
@@ -237,12 +243,21 @@ def main():
                          help="Custom job ID (default: auto-generated from topic + date)")
     parser.add_argument("--resume", type=str, default=None,
                          help="Resume an existing job by ID (topic is read from state DB)")
-    parser.add_argument("--skip-video", action="store_true",
-                         help="Skip the video generation stage (produce audio only)")
+    parser.add_argument(
+        "--with-video",
+        action="store_true",
+        help="Run the video stage (default: skip video / audio only)",
+    )
+    parser.add_argument(
+        "--skip-video",
+        action="store_true",
+        help=argparse.SUPPRESS,  # legacy alias; video is skipped by default now
+    )
     args = parser.parse_args()
 
     config = load_config()
     speakers = load_speakers()
+    skip_video = not args.with_video
 
     if args.resume:
         state_db_path = PROJECT_ROOT / config["paths"]["state_db"]
@@ -252,7 +267,7 @@ def main():
             print(f"No job found with id: {args.resume}")
             sys.exit(1)
         run_job(topic=job["topic"], job_id=args.resume, config=config,
-                speakers=speakers, skip_video=args.skip_video)
+                speakers=speakers, skip_video=skip_video)
         return
 
     if not args.topic:
@@ -261,7 +276,7 @@ def main():
 
     job_id = args.job_id or make_job_id(args.topic)
     run_job(topic=args.topic, job_id=job_id, config=config,
-            speakers=speakers, skip_video=args.skip_video)
+            speakers=speakers, skip_video=skip_video)
 
 
 if __name__ == "__main__":

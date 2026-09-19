@@ -6,6 +6,7 @@ import logging
 import redis
 
 from backend.celery_app import REDIS_URL, celery_app
+from backend.episode_overrides import apply_episode_overrides, get_episode_config
 from core.config_loader import load_config, load_speakers
 from run_pipeline import run_job
 
@@ -33,15 +34,17 @@ class RedisLogHandler(logging.Handler):
 
 
 @celery_app.task(bind=True, name="backend.tasks.run_podcast_job")
-def run_podcast_job(self, topic: str, job_id: str, skip_video: bool = False):
+def run_podcast_job(self, topic: str, job_id: str, skip_video: bool = True):
     """
     Async wrapper around run_pipeline.run_job.
 
-    Attaches a RedisLogHandler so FastAPI WebSocket clients can stream
-    live logs from channel logs:{job_id}.
+    Loads EpisodeConfig for job_id (if any) and merges duration / segments /
+    model / skip_video before running. Attaches RedisLogHandler for live logs.
     """
     config = load_config()
     speakers = load_speakers()
+    episode = get_episode_config(job_id)
+    config, effective_skip = apply_episode_overrides(config, episode, skip_video)
 
     redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
     log_handler = RedisLogHandler(redis_client, job_id)
@@ -51,7 +54,7 @@ def run_podcast_job(self, topic: str, job_id: str, skip_video: bool = False):
             job_id=job_id,
             config=config,
             speakers=speakers,
-            skip_video=skip_video,
+            skip_video=effective_skip,
             log_handlers=[log_handler],
         )
         return {"job_id": job_id, "status": "ok"}
