@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database import init_db
-from backend.routers import jobs
+from backend.routers import jobs, ws
 
 app = FastAPI(title="Podcast Automation API", version="0.1.0")
 
@@ -20,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(jobs.router)
+app.include_router(ws.router)
 
 
 @app.on_event("startup")

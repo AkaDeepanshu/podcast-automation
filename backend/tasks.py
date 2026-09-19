@@ -1,8 +1,35 @@
 """Celery tasks that run the podcast pipeline in the background."""
 
-from backend.celery_app import celery_app
+import json
+import logging
+
+import redis
+
+from backend.celery_app import REDIS_URL, celery_app
 from core.config_loader import load_config, load_speakers
 from run_pipeline import run_job
+
+
+class RedisLogHandler(logging.Handler):
+    """Publish each log record to Redis pub/sub channel logs:{job_id}."""
+
+    def __init__(self, redis_client: redis.Redis, job_id: str):
+        super().__init__()
+        self.redis = redis_client
+        self.channel = f"logs:{job_id}"
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            payload = json.dumps(
+                {
+                    "level": record.levelname,
+                    "msg": self.format(record),
+                    "ts": record.created,
+                }
+            )
+            self.redis.publish(self.channel, payload)
+        except Exception:
+            self.handleError(record)
 
 
 @celery_app.task(bind=True, name="backend.tasks.run_podcast_job")
@@ -10,16 +37,24 @@ def run_podcast_job(self, topic: str, job_id: str, skip_video: bool = False):
     """
     Async wrapper around run_pipeline.run_job.
 
-    Config and speakers are loaded inside the worker so the API only needs
-    to pass topic / job_id / flags — no large YAML payloads on the wire.
+    Attaches a RedisLogHandler so FastAPI WebSocket clients can stream
+    live logs from channel logs:{job_id}.
     """
     config = load_config()
     speakers = load_speakers()
-    run_job(
-        topic=topic,
-        job_id=job_id,
-        config=config,
-        speakers=speakers,
-        skip_video=skip_video,
-    )
-    return {"job_id": job_id, "status": "ok"}
+
+    redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+    log_handler = RedisLogHandler(redis_client, job_id)
+    try:
+        run_job(
+            topic=topic,
+            job_id=job_id,
+            config=config,
+            speakers=speakers,
+            skip_video=skip_video,
+            log_handlers=[log_handler],
+        )
+        return {"job_id": job_id, "status": "ok"}
+    finally:
+        log_handler.close()
+        redis_client.close()

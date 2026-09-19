@@ -47,13 +47,20 @@ def make_job_id(topic: str) -> str:
     return f"{date_str}_{slug}_{short_uuid}"
 
 
-def run_job(topic: str, job_id: str, config: dict, speakers: dict, skip_video: bool = False):
+def run_job(
+    topic: str,
+    job_id: str,
+    config: dict,
+    speakers: dict,
+    skip_video: bool = False,
+    log_handlers: list | None = None,
+):
     jobs_dir = PROJECT_ROOT / config["paths"]["jobs_dir"]
     job_dir = jobs_dir / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
     logs_dir = PROJECT_ROOT / config["paths"]["logs_dir"]
-    log = get_job_logger(job_id, str(logs_dir))
+    log = get_job_logger(job_id, str(logs_dir), extra_handlers=log_handlers)
 
     state_db_path = PROJECT_ROOT / config["paths"]["state_db"]
     state_db = JobStateDB(str(state_db_path))
