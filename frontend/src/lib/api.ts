@@ -60,6 +60,48 @@ export async function getScript(jobId: string): Promise<DialogueLine[]> {
   return data;
 }
 
+export type AppConfigResponse = {
+  config: Record<string, unknown>;
+  speakers: Record<
+    string,
+    {
+      name: string;
+      gender?: string;
+      voice_id: string;
+      persona?: string;
+    }
+  >;
+};
+
+export async function getAppConfig(): Promise<AppConfigResponse> {
+  const { data } = await api.get<AppConfigResponse>("/api/config");
+  return data;
+}
+
+export async function saveAppConfig(
+  payload: AppConfigResponse,
+): Promise<{ status: string }> {
+  const { data } = await api.put<{ status: string }>("/api/config", payload);
+  return data;
+}
+
+export async function uploadAsset(
+  name: "speaker_a" | "speaker_b" | "logo",
+  file: File,
+): Promise<{ name: string; path: string; bytes: number }> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post<{ name: string; path: string; bytes: number }>(
+    `/api/assets/${name}`,
+    form,
+  );
+  return data;
+}
+
+export function assetUrl(name: "speaker_a" | "speaker_b" | "logo"): string {
+  return `${api.defaults.baseURL}/api/assets/${name}`;
+}
+
 export function audioUrl(jobId: string): string {
   return `${api.defaults.baseURL}/api/jobs/${jobId}/audio`;
 }
