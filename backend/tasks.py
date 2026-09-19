@@ -7,6 +7,7 @@ import redis
 
 from backend.celery_app import REDIS_URL, celery_app
 from backend.episode_overrides import apply_episode_overrides, get_episode_config
+from backend.services.topic_sync import sync_topic_for_job
 from core.config_loader import load_config, load_speakers
 from run_pipeline import run_job
 
@@ -57,7 +58,11 @@ def run_podcast_job(self, topic: str, job_id: str, skip_video: bool = True):
             skip_video=effective_skip,
             log_handlers=[log_handler],
         )
+        sync_topic_for_job(job_id)
         return {"job_id": job_id, "status": "ok"}
+    except Exception as exc:
+        sync_topic_for_job(job_id, error=str(exc))
+        raise
     finally:
         log_handler.close()
         redis_client.close()

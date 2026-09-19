@@ -1,9 +1,12 @@
 import axios from "axios";
 import type {
+  FocusArea,
   JobCreatePayload,
   JobCreated,
   JobDetail,
   JobSummary,
+  RunNextResult,
+  TopicItem,
 } from "./types";
 
 const api = axios.create({
@@ -116,6 +119,62 @@ export function wsLogsUrl(jobId: string): string {
     "ws",
   );
   return `${base}/ws/jobs/${jobId}/logs`;
+}
+
+export async function listTopics(status?: string): Promise<TopicItem[]> {
+  const { data } = await api.get<TopicItem[]>("/api/topics", {
+    params: status ? { status } : undefined,
+  });
+  return data;
+}
+
+export async function createTopic(payload: {
+  title: string;
+  focus_area_id?: number | null;
+  priority?: number;
+  status?: "draft" | "approved";
+}): Promise<TopicItem> {
+  const { data } = await api.post<TopicItem>("/api/topics", payload);
+  return data;
+}
+
+export async function updateTopic(
+  id: number,
+  payload: Partial<{ title: string; priority: number; status: string; focus_area_id: number | null }>,
+): Promise<TopicItem> {
+  const { data } = await api.patch<TopicItem>(`/api/topics/${id}`, payload);
+  return data;
+}
+
+export async function deleteTopic(id: number): Promise<void> {
+  await api.delete(`/api/topics/${id}`);
+}
+
+export async function approveTopic(id: number): Promise<TopicItem> {
+  const { data } = await api.post<TopicItem>(`/api/topics/${id}/approve`);
+  return data;
+}
+
+export async function runNextTopic(): Promise<RunNextResult> {
+  const { data } = await api.post<RunNextResult>("/api/queue/run-next");
+  return data;
+}
+
+export async function listFocusAreas(): Promise<FocusArea[]> {
+  const { data } = await api.get<FocusArea[]>("/api/focus-areas");
+  return data;
+}
+
+export async function createFocusArea(name: string): Promise<FocusArea> {
+  const { data } = await api.post<FocusArea>("/api/focus-areas", {
+    name,
+    enabled: true,
+  });
+  return data;
+}
+
+export async function deleteFocusArea(id: number): Promise<void> {
+  await api.delete(`/api/focus-areas/${id}`);
 }
 
 export default api;

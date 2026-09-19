@@ -55,3 +55,60 @@ class RetryResponse(BaseModel):
     from_stage: str
     task_id: str
     status: str
+
+
+# ---- Topics / focus areas ----
+
+class FocusAreaCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    enabled: bool = True
+
+
+class FocusAreaUpdate(BaseModel):
+    name: str | None = None
+    enabled: bool | None = None
+
+
+class FocusAreaOut(BaseModel):
+    id: int
+    name: str
+    enabled: bool
+    created_at: str
+
+
+class TopicCreate(BaseModel):
+    title: str = Field(..., min_length=1)
+    focus_area_id: int | None = None
+    source: str = "manual"
+    status: str = "draft"  # draft | approved (if skipping approval)
+    priority: int = 0
+
+
+class TopicUpdate(BaseModel):
+    title: str | None = None
+    focus_area_id: int | None = None
+    priority: int | None = None
+    status: str | None = None
+
+
+class TopicOut(BaseModel):
+    id: int
+    title: str
+    focus_area_id: int | None
+    focus_area_name: str | None = None
+    source: str
+    status: str
+    priority: int
+    created_at: str
+    updated_at: str
+    job_id: str | None
+    error: str | None
+    attempt_count: int
+
+
+class RunNextResult(BaseModel):
+    topic_id: int
+    job_id: str
+    topic: str
+    task_id: str
+    status: str

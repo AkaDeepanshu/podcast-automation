@@ -71,6 +71,39 @@ class EpisodeConfig(Base):
     job: Mapped["Job"] = relationship(back_populates="episode_config")
 
 
+class FocusArea(Base):
+    __tablename__ = "focus_areas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    topics: Mapped[list["Topic"]] = relationship(back_populates="focus_area")
+
+
+class Topic(Base):
+    __tablename__ = "topics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    focus_area_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("focus_areas.id"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+    job_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("jobs.job_id"), nullable=True
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    focus_area: Mapped["FocusArea | None"] = relationship(back_populates="topics")
+
+
 class ProviderUsage:
     """
     Schema mirror of data/state/provider_usage.db (separate SQLite file).

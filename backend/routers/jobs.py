@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import EpisodeConfig, Job, Stage
+from backend.models import Job, Stage
 from backend.schemas import (
     JobCreate,
     JobCreated,
@@ -20,9 +20,9 @@ from backend.schemas import (
     StageOut,
     EpisodeConfigOut,
 )
+from backend.services.enqueue import enqueue_job
 from backend.tasks import run_podcast_job
 from core.config_loader import PROJECT_ROOT, load_config
-from run_pipeline import make_job_id
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -118,38 +118,13 @@ def _reset_from_stage(db: Session, job: Job, from_stage: str) -> None:
 
 @router.post("", response_model=JobCreated, status_code=201)
 def create_job(body: JobCreate, db: Session = Depends(get_db)):
-    job_id = body.job_id or make_job_id(body.topic)
-    if db.get(Job, job_id):
-        raise HTTPException(status_code=409, detail=f"Job already exists: {job_id}")
-
-    now = _now()
-    job = Job(
-        job_id=job_id,
+    return enqueue_job(
+        db,
         topic=body.topic,
-        status="pending",
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(job)
-
-    cfg = body.config
-    db.add(
-        EpisodeConfig(
-            job_id=job_id,
-            target_duration_minutes=cfg.target_duration_minutes if cfg else None,
-            num_segments=cfg.num_segments if cfg else None,
-            model=cfg.model if cfg else None,
-            skip_video=body.skip_video,
-        )
-    )
-    db.commit()
-
-    async_result = run_podcast_job.delay(body.topic, job_id, body.skip_video)
-    return JobCreated(
-        job_id=job_id,
-        topic=body.topic,
-        status="pending",
-        task_id=async_result.id,
+        job_id=body.job_id,
+        skip_video=body.skip_video,
+        config=body.config,
+        dispatch=True,
     )
 
 

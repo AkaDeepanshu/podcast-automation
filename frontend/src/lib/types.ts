@@ -42,3 +42,33 @@ export type JobCreated = {
   status: string;
   task_id: string;
 };
+
+export type FocusArea = {
+  id: number;
+  name: string;
+  enabled: boolean;
+  created_at: string;
+};
+
+export type TopicItem = {
+  id: number;
+  title: string;
+  focus_area_id: number | null;
+  focus_area_name: string | null;
+  source: string;
+  status: string;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+  job_id: string | null;
+  error: string | null;
+  attempt_count: number;
+};
+
+export type RunNextResult = {
+  topic_id: number;
+  job_id: string;
+  topic: string;
+  task_id: string;
+  status: string;
+};
