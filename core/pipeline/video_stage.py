@@ -4,8 +4,8 @@ Stage 4: Video generation.
 Produces a 1280×720 MP4 with:
   - Static dark background
   - Two speaker illustrations (left / right) — PNG files you provide in
-    assets/. Falls back to clean placeholder rectangles if not present.
-  - Optional logo in top-right corner (assets/logo.png)
+    data/assets/. Falls back to clean placeholder rectangles if not present.
+  - Optional logo in top-right corner (data/assets/logo.png)
   - Active speaker highlight: the speaking side brightens slightly each line
   - Dynamic subtitles: centered, per dialogue line, timed from the actual
     per-line TTS durations + assembly pause config (no guessing — derived
@@ -18,10 +18,10 @@ pipes rawvideo bytes into ffmpeg (handles codec, muxing with audio). This
 gives pixel-accurate rendering without needing MoviePy or any other
 video-specific library.
 
-Asset paths (relative to project root):
-  assets/speaker_a.png   — left speaker illustration (optional)
-  assets/speaker_b.png   — right speaker illustration (optional)
-  assets/logo.png        — top-right logo (optional)
+Asset paths (relative to project root; overridable via paths.assets_dir):
+  data/assets/speaker_a.png   — left speaker illustration (optional)
+  data/assets/speaker_b.png   — right speaker illustration (optional)
+  data/assets/logo.png        — top-right logo (optional)
 
 Video config lives in config.yaml under the `video:` key.
 """
@@ -309,6 +309,7 @@ def run_video_stage(
     assembly_config: dict,
     video_config: dict,
     log,
+    assets_dir: Path | None = None,
 ) -> Path:
     """
     Renders the full episode video.
@@ -376,18 +377,19 @@ def run_video_stage(
     # We'll scan frame-by-frame in the render loop instead for accuracy.
 
     # ---- Load assets ----
-    project_root = job_dir.parent.parent  # jobs/{job_id}/ -> project root
-    assets_dir = project_root / "assets"
+    if assets_dir is None:
+        from core.config_loader import PROJECT_ROOT
+        assets_dir = PROJECT_ROOT / "data" / "assets"
 
     speaker_a_img = _load_speaker_image(assets_dir / "speaker_a.png", 340, 420)
     speaker_b_img = _load_speaker_image(assets_dir / "speaker_b.png", 340, 420)
     logo_img = _load_speaker_image(assets_dir / "logo.png", 180, 70)
 
     if speaker_a_img is None:
-        log.info("assets/speaker_a.png not found — using placeholder. "
+        log.info(f"{assets_dir / 'speaker_a.png'} not found — using placeholder. "
                  "Add a PNG to get your actual speaker illustration.")
     if speaker_b_img is None:
-        log.info("assets/speaker_b.png not found — using placeholder.")
+        log.info(f"{assets_dir / 'speaker_b.png'} not found — using placeholder.")
 
     subtitle_font_size = video_config.get("subtitle_font_size", SUBTITLE_FONT_SIZE)
     font_path = video_config.get("font_path", FONT_BOLD)

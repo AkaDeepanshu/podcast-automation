@@ -1,10 +1,14 @@
 # Secrets — never commit
 .env
 
-# Generated runtime artifacts
-jobs/
-logs/
-state/
+# Generated runtime artifacts (under data/)
+data/jobs/
+data/logs/
+data/state/
+
+# Uploaded speaker/logo images — keep README tracked
+data/assets/*
+!data/assets/README.md
 
 # Python
 __pycache__/
@@ -12,6 +16,11 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
 
 # OS
 .DS_Store

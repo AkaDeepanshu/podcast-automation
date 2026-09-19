@@ -66,7 +66,9 @@ def get_script_generator(config: dict) -> ScriptGenerator:
         from core.providers.fallback_script import FallbackScriptGenerator
         from core.provider_usage_tracker import ProviderUsageTracker
 
-        usage_db_path = PROJECT_ROOT / config["paths"].get("usage_db", "state/provider_usage.db")
+        usage_db_path = PROJECT_ROOT / config["paths"].get(
+            "usage_db", "data/state/provider_usage.db"
+        )
         usage_tracker = ProviderUsageTracker(str(usage_db_path))
 
         chain_names = config["script_generation"]["fallback_chain"]

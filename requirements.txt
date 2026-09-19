@@ -16,3 +16,11 @@ pyloudnorm>=0.1.1
 
 # Video
 Pillow>=11.0.0,<13.0.0
+
+# Web API (FastAPI + Celery)
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+celery[redis]>=5.3.0
+redis>=5.0.0
+sqlalchemy>=2.0.0
+python-multipart>=0.0.9

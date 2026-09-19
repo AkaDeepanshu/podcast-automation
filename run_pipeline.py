@@ -190,6 +190,9 @@ def run_job(topic: str, job_id: str, config: dict, speakers: dict, skip_video: b
                     assembly_config=config["tts"],
                     video_config=config.get("video", {}),
                     log=log,
+                    assets_dir=PROJECT_ROOT / config["paths"].get(
+                        "assets_dir", "data/assets"
+                    ),
                 )
                 state_db.set_stage_status(job_id, "video", "completed")
             except Exception as e:

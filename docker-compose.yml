@@ -1,0 +1,7 @@
+# Redis only — Celery broker / log pub-sub. No Postgres yet (SQLite stays in data/state/jobs.db).
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped

@@ -84,7 +84,7 @@ This will:
 2. Generate dialogue chunk-by-chunk for each segment
 3. Synthesize each dialogue line as a separate `.wav` file
 4. Normalize, add natural pauses, stitch, and master into one final
-   episode file: `jobs/{job_id}/04_final_audio.wav`
+   episode file: `data/jobs/{job_id}/04_final_audio.wav`
 
 ### Resuming a failed/interrupted job
 
@@ -101,7 +101,7 @@ assembled audio, and the retry resolves them, **assembly automatically
 re-runs** to fill the gaps — you don't need to force this manually.
 
 Job IDs are printed at the start of each run and are also the folder name
-under `jobs/`.
+under `data/jobs/`.
 
 ### Custom job ID
 
@@ -114,7 +114,7 @@ python run_pipeline.py --topic "..." --job-id my-episode-01
 ## 3. Output structure
 
 ```
-jobs/{job_id}/
+data/jobs/{job_id}/
 ├── 01_outline.json            # segment-by-segment outline
 ├── 02_script.json             # full dialogue script, structured
 ├── 03_audio_lines/
@@ -144,7 +144,7 @@ Checkable via `JobStateDB.get_job(job_id)["status"]`:
 |---|---|
 | `in_progress` | Currently running |
 | `completed` | Fully succeeded, no gaps in final audio |
-| `completed_with_warnings` | Final audio exists but has gaps — one or more TTS lines failed and weren't retried yet. Check `04_assembly_manifest.json` → `skipped_line_indices`, or `logs/{job_id}.log` |
+| `completed_with_warnings` | Final audio exists but has gaps — one or more TTS lines failed and weren't retried yet. Check `04_assembly_manifest.json` → `skipped_line_indices`, or `data/logs/{job_id}.log` |
 | `failed` | A stage errored out entirely (e.g. script generation failed, bad API key) — no usable final audio |
 
 ---
@@ -209,7 +209,7 @@ How it behaves:
   quota / transient / config).
 
 **Pre-emptive daily budget check**: each provider also tracks its own call
-count locally (`state/provider_usage.db`) against a configurable
+count locally (`data/state/provider_usage.db`) against a configurable
 `daily_limit`. If local tracking shows you're at/near that limit, the
 provider fails fast *before* making a network call — skipping straight to
 the next provider in the chain rather than wasting a call on a near-certain
@@ -261,14 +261,14 @@ The assembly stage (`core/pipeline/assembly_stage.py`):
 `.env.example`) and contains a real key. The pipeline fails fast with a
 clear error rather than partially running.
 
-**A TTS line keeps failing** — check `logs/{job_id}.log` for the specific
+**A TTS line keeps failing** — check `data/logs/{job_id}.log` for the specific
 error. Common cause: unusual characters/symbols in generated text that
 Kokoro's phonemizer chokes on. You can manually inspect/edit
-`jobs/{job_id}/02_script.json` and delete the job's row from `state/jobs.db`
+`data/jobs/{job_id}/02_script.json` and delete the job's row from `data/state/jobs.db`
 `tts_lines` table for that line index, then `--resume`.
 
 **Final audio has a gap / silence where a line should be** — check
-`jobs/{job_id}/04_assembly_manifest.json` → `skipped_line_indices`. That
+`data/jobs/{job_id}/04_assembly_manifest.json` → `skipped_line_indices`. That
 line's TTS failed and wasn't successfully retried before assembly ran.
 `--resume` the job to retry it; assembly will automatically re-run and
 fill the gap once the retry succeeds.
@@ -293,7 +293,7 @@ Groq model doesn't support Structured Outputs. Either switch to
 **Checking job status without re-running:**
 ```python
 from core.state_db import JobStateDB
-db = JobStateDB("state/jobs.db")
+db = JobStateDB("data/state/jobs.db")
 print(db.get_job("your-job-id"))
 print(db.get_all_stages("your-job-id"))
 ```

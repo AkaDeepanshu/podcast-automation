@@ -85,7 +85,8 @@ video:
   font_path: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
   crf: 23                 # H.264 quality (18=near-lossless, 28=smaller file, 23=good default)
 paths:
-  jobs_dir: "jobs"
-  state_db: "state/jobs.db"
-  usage_db: "state/provider_usage.db"
-  logs_dir: "logs"
+  jobs_dir: "data/jobs"
+  state_db: "data/state/jobs.db"
+  usage_db: "data/state/provider_usage.db"
+  logs_dir: "data/logs"
+  assets_dir: "data/assets"
