@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "VIS_WS_PORT=3020 NODE_PATH=/home/deepanshusharma/.cursor/extensions/serkan-ozal.browser-devtools-mcp-vscode-0.7.0-universal/node_modules node ./.cursor/scripts/browser-devtools-hook.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "type": "command",
+        "command": "VIS_WS_PORT=3020 NODE_PATH=/home/deepanshusharma/.cursor/extensions/serkan-ozal.browser-devtools-mcp-vscode-0.7.0-universal/node_modules node ./.cursor/scripts/browser-devtools-hook.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "type": "command",
+        "command": "VIS_WS_PORT=3020 NODE_PATH=/home/deepanshusharma/.cursor/extensions/serkan-ozal.browser-devtools-mcp-vscode-0.7.0-universal/node_modules node ./.cursor/scripts/browser-devtools-hook.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": "VIS_WS_PORT=3020 NODE_PATH=/home/deepanshusharma/.cursor/extensions/serkan-ozal.browser-devtools-mcp-vscode-0.7.0-universal/node_modules node ./.cursor/scripts/browser-devtools-hook.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "command": "VIS_WS_PORT=3020 NODE_PATH=/home/deepanshusharma/.cursor/extensions/serkan-ozal.browser-devtools-mcp-vscode-0.7.0-universal/node_modules node ./.cursor/scripts/browser-devtools-hook.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "type": "command",
+        "command": "VIS_WS_PORT=3020 NODE_PATH=/home/deepanshusharma/.cursor/extensions/serkan-ozal.browser-devtools-mcp-vscode-0.7.0-universal/node_modules node ./.cursor/scripts/browser-devtools-hook.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "stop": [
+      {
+        "type": "command",
+        "command": "VIS_WS_PORT=3020 NODE_PATH=/home/deepanshusharma/.cursor/extensions/serkan-ozal.browser-devtools-mcp-vscode-0.7.0-universal/node_modules node ./.cursor/scripts/browser-devtools-hook.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ]
+  }
+}
