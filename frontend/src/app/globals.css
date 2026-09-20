@@ -1,17 +1,24 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* Studio brand + shadcn semantic tokens (light only) */
 :root {
-  --ink: #161b18;
-  --ink-soft: #2c342f;
-  --muted: #6a736c;
-  --paper: #f2eee6;
-  --paper-deep: #e5dfd2;
-  --surface: rgba(255, 252, 246, 0.82);
-  --surface-solid: #fffdf8;
-  --line: rgba(22, 27, 24, 0.1);
-  --accent: #0d6a5a;
-  --accent-hover: #0a5447;
-  --accent-soft: #d5ebe5;
+  --ink: #141a17;
+  --ink-soft: #2a322e;
+  --studio-muted: #5c665f;
+  /* Brighter paper: less muddy beige */
+  --paper: #f8f5ef;
+  --paper-deep: #ebe6db;
+  --surface: rgba(255, 255, 252, 0.92);
+  --surface-solid: #ffffff;
+  --line: rgba(22, 27, 24, 0.09);
+  /* Clearer teal (less forest-black on switches) */
+  --brand: #0f7a68;
+  --brand-hover: #0c6556;
+  --brand-soft: #e0f3ee;
   --warn: #9a6b16;
   --warn-soft: #f3e6c6;
   --danger: #9b3b32;
@@ -20,25 +27,103 @@
   --ok-soft: #d7ead9;
   --running: #1f5f8a;
   --running-soft: #d6e7f3;
-  --shadow: 0 18px 50px rgba(22, 27, 24, 0.08);
-  --radius: 18px;
+  --shadow: 0 12px 40px rgba(22, 27, 24, 0.06);
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-body: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+
+  /* Back-compat aliases */
+  --muted: var(--paper-deep);
+  --accent: var(--brand);
+  --accent-hover: var(--brand-hover);
+  --accent-soft: var(--brand-soft);
+
+  /* Tighter radius: cards ~12px, fields ~8px */
+  --radius: 0.75rem;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface-solid);
+  --card-foreground: var(--ink);
+  --popover: var(--surface-solid);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--paper-deep);
+  --secondary-foreground: var(--ink-soft);
+  --muted-bg: var(--paper-deep);
+  --muted-foreground: var(--studio-muted);
+  --accent-bg: var(--brand-soft);
+  --accent-foreground: var(--brand);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: rgba(22, 27, 24, 0.12);
+  --ring: color-mix(in srgb, var(--brand) 40%, transparent);
+  --chart-1: var(--brand);
+  --chart-2: var(--running);
+  --chart-3: var(--warn);
+  --chart-4: var(--ok);
+  --chart-5: var(--ink-soft);
+  --sidebar: var(--surface-solid);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--brand-soft);
+  --sidebar-accent-foreground: var(--brand);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ring);
 }
 
 @theme inline {
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
-  --color-muted: var(--muted);
+  --color-muted: var(--paper-deep);
+  --color-muted-foreground: var(--studio-muted);
   --color-paper: var(--paper);
   --color-paper-deep: var(--paper-deep);
   --color-surface: var(--surface-solid);
   --color-line: var(--line);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-soft: var(--accent-soft);
+  --color-accent: var(--brand);
+  --color-accent-hover: var(--brand-hover);
+  --color-accent-soft: var(--brand-soft);
+  --color-accent-foreground: #ffffff;
   --font-sans: var(--font-body);
   --font-serif: var(--font-display);
+  --font-heading: var(--font-display);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.25);
+  --radius-2xl: calc(var(--radius) * 1.5);
 }
 
 * {
@@ -55,9 +140,10 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(13, 106, 90, 0.12), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(154, 107, 22, 0.1), transparent 50%),
-    linear-gradient(165deg, var(--paper) 0%, var(--paper-deep) 100%);
+    radial-gradient(1100px 520px at 8% -8%, rgba(15, 122, 104, 0.16), transparent 58%),
+    radial-gradient(800px 420px at 96% 4%, rgba(31, 95, 138, 0.1), transparent 52%),
+    radial-gradient(700px 380px at 50% 100%, rgba(154, 107, 22, 0.06), transparent 55%),
+    linear-gradient(168deg, #fcfaf6 0%, var(--paper) 42%, #f0ebe3 100%);
   background-attachment: fixed;
 }
 
@@ -66,15 +152,49 @@ body::before {
   pointer-events: none;
   position: fixed;
   inset: 0;
-  opacity: 0.35;
+  opacity: 0.22;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-  mix-blend-mode: multiply;
+  mix-blend-mode: soft-light;
   z-index: 0;
+}
+
+/* Thin global scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--ink) 28%, transparent);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--ink) 42%, transparent);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* Native select: match Studio field chrome */
+select:not([multiple]) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235c665f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1rem;
+  padding-right: 2.25rem;
 }
 
 @keyframes rise-in {
@@ -107,23 +227,17 @@ a {
   }
 }
 
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+  100% {
+    background-position: -200% 0;
   }
 }
 
 .animate-rise {
   animation: rise-in 0.45s ease-out both;
-}
-
-.animate-toast-in {
-  animation: toast-in 0.28s ease-out both;
 }
 
 .animate-backdrop {
@@ -132,4 +246,24 @@ a {
 
 .animate-pulse-soft {
   animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--paper-deep) 0%,
+    var(--surface-solid) 45%,
+    var(--paper-deep) 90%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
 }

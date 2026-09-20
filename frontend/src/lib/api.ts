@@ -242,4 +242,37 @@ export async function runDiscovery(perArea = 3): Promise<DiscoveryResult> {
   return data;
 }
 
+export type OpsStatus = {
+  ok: boolean;
+  redis_ok: boolean;
+  workers_online: number;
+  worker_names: string[];
+  beat_hint: string;
+  telegram_configured: boolean;
+  automation_enabled: boolean;
+  lock_held: boolean;
+  approved_queue_depth: number;
+  buffer_queue_depth: number;
+  min_queue_depth: number;
+  interval_minutes: number;
+  last_tick_at: string | null;
+  last_run_at: string | null;
+  last_error: string | null;
+  in_progress_jobs: string[];
+  gemini_quota: {
+    key: string;
+    used_today: number;
+    daily_limit: number;
+    headroom_needed: number;
+    near_limit: boolean;
+  } | null;
+  checks: string[];
+  recommendations: string[];
+};
+
+export async function getOpsStatus(): Promise<OpsStatus> {
+  const { data } = await api.get<OpsStatus>("/api/ops/status");
+  return data;
+}
+
 export default api;

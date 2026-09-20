@@ -1,13 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { getJob, retryJob } from "@/lib/api";
-import type { JobDetail } from "@/lib/types";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
+import { PageSkeleton } from "@/components/layout/PageSkeleton";
+import { SectionCard } from "@/components/layout/SectionCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StageTracker } from "@/components/StageTracker";
 import { LogStream } from "@/components/LogStream";
 import { MediaPlayer } from "@/components/MediaPlayer";
+import Link from "next/link";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { getJob, retryJob } from "@/lib/api";
+import type { JobDetail } from "@/lib/types";
+import { titleCaseWords } from "@/lib/labels";
 
 function formatDate(iso: string) {
   try {
@@ -33,7 +40,6 @@ export default function EpisodeDetailPage({
   const [job, setJob] = useState<JobDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryingStage, setRetryingStage] = useState<string | null>(null);
-  const [retryError, setRetryError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -65,15 +71,13 @@ export default function EpisodeDetailPage({
   );
 
   async function onRetry(fromStage: string) {
-    setRetryError(null);
     setRetryingStage(fromStage);
     try {
       await retryJob(id, fromStage);
+      toast.success(`Retrying from ${titleCaseWords(fromStage)}`);
       await refresh();
     } catch (err) {
-      setRetryError(
-        err instanceof Error ? err.message : "Retry failed",
-      );
+      toast.error(err instanceof Error ? err.message : "Retry failed");
     } finally {
       setRetryingStage(null);
     }
@@ -81,76 +85,65 @@ export default function EpisodeDetailPage({
 
   if (error && !job) {
     return (
-      <div className="animate-rise">
-        <Link href="/" className="text-sm text-accent hover:text-accent-hover">
-          ← Episodes
-        </Link>
-        <p className="mt-6 rounded-[var(--radius)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">
-          {error}
-        </p>
-      </div>
+      <PageShell variant="wide">
+        <EmptyState
+          title="Episode not found"
+          description={error}
+          action={
+            <Link
+              href="/"
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary/80"
+            >
+              Back to episodes
+            </Link>
+          }
+        />
+      </PageShell>
     );
   }
 
   if (!job) {
-    return (
-      <div className="animate-rise text-sm text-muted">Loading episode…</div>
-    );
+    return <PageSkeleton variant="wide" rows={4} />;
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="animate-rise">
+    <PageShell variant="wide">
+      <div>
         <Link
           href="/"
           className="text-sm font-medium text-accent transition hover:text-accent-hover"
         >
           ← Episodes
         </Link>
-        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-              Episode
-            </p>
-            <h1 className="font-serif text-3xl tracking-tight text-ink sm:text-4xl">
-              {job.topic}
-            </h1>
-            <p className="mt-2 truncate font-mono text-xs text-muted">
-              {job.job_id}
-            </p>
-            <p className="mt-2 text-xs text-muted">
-              Created {formatDate(job.created_at)}
-            </p>
-          </div>
-          <StatusBadge status={job.status} />
-        </div>
-        {retryError && (
-          <p className="mt-4 rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
-            {retryError}
-          </p>
-        )}
+        <PageHeader
+          className="mt-4"
+          title={job.topic}
+          description={`Created ${formatDate(job.created_at)} · ${job.job_id}`}
+          actions={<StatusBadge status={job.status} />}
+        />
       </div>
 
-      <div className="animate-rise" style={{ animationDelay: "40ms" }}>
+      <SectionCard title="Pipeline stages">
         <StageTracker
           stages={job.stages}
           onRetry={onRetry}
           retryingStage={retryingStage}
         />
-      </div>
+      </SectionCard>
 
-      <div
-        className="animate-rise grid gap-6 lg:grid-cols-2"
-        style={{ animationDelay: "80ms" }}
-      >
-        <LogStream jobId={job.job_id} />
-        <MediaPlayer
-          jobId={job.job_id}
-          hasScript={hasScript}
-          hasAudio={hasAudio}
-          hasVideo={hasVideo}
-        />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SectionCard title="Live logs">
+          <LogStream jobId={job.job_id} />
+        </SectionCard>
+        <SectionCard title="Media">
+          <MediaPlayer
+            jobId={job.job_id}
+            hasScript={hasScript}
+            hasAudio={hasAudio}
+            hasVideo={hasVideo}
+          />
+        </SectionCard>
       </div>
-    </div>
+    </PageShell>
   );
 }

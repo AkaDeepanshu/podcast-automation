@@ -11,6 +11,7 @@ from backend.routers import (
     discovery,
     jobs,
     notifications,
+    ops,
     topics,
     ws,
 )
@@ -36,6 +37,7 @@ app.include_router(topics.router)
 app.include_router(automation.router)
 app.include_router(notifications.router)
 app.include_router(discovery.router)
+app.include_router(ops.router)
 
 
 @app.on_event("startup")
@@ -45,4 +47,5 @@ def on_startup():
 
 @app.get("/health")
 def health():
+    """Liveness probe. For readiness / ops checklist use GET /api/ops/status."""
     return {"status": "ok"}

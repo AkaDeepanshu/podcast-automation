@@ -1,26 +1,19 @@
-# =============================================================================
-# Speaker Personas & Voice Mapping
-# =============================================================================
-# Keep these consistent across episodes for channel identity.
-# "voice_id" maps to whatever the active TTS provider calls its voices —
-# for Kokoro these are the built-in voice names (e.g. af_heart, am_michael).
-# When you switch to ElevenLabs later, just change voice_id to the ElevenLabs voice ID.
-
 speakers:
   A:
-    name: "Maya"
-    gender: "female"
-    voice_id: "af_heart"          # Kokoro built-in voice (American female)
-    persona: >
-      Curious, warm host who asks clarifying questions and steers the
-      conversation. Speaks in a slightly informal, engaging tone. Tends to
-      bring conversations back to practical, relatable examples.
+    name: Maya
+    gender: female
+    voice_id: af_heart
+    persona: 'Curious, warm host who asks clarifying questions and steers the conversation.
+      Speaks in a slightly informal, engaging tone. Tends to bring conversations back
+      to practical, relatable examples.
 
+      '
   B:
-    name: "Theo"
-    gender: "male"
-    voice_id: "am_michael"        # Kokoro built-in voice (American male)
-    persona: >
-      Knowledgeable co-host who explains concepts in depth, slightly more
-      analytical. Occasionally plays devil's advocate to add contrast.
-      Uses concrete examples and analogies rather than abstract claims.
+    name: Theo
+    gender: male
+    voice_id: am_michael
+    persona: 'Knowledgeable co-host who explains concepts in depth, slightly more
+      analytical. Occasionally plays devil''s advocate to add contrast. Uses concrete
+      examples and analogies rather than abstract claims.
+
+      '

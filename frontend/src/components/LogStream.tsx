@@ -93,9 +93,8 @@ export function LogStream({ jobId }: Props) {
   }
 
   return (
-    <section className="rounded-[var(--radius)] border border-line bg-[#121714] p-4 shadow-[var(--shadow)] sm:p-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-serif text-lg text-[#f2eee6]">Live logs</h2>
+    <div className="rounded-lg bg-[#121714] p-4 sm:p-5">
+      <div className="mb-3 flex items-center justify-end gap-3">
         <span
           className={`text-xs font-semibold uppercase tracking-[0.14em] ${
             connected ? "text-[#9fceb8]" : "text-[#e6c27a]"
@@ -111,7 +110,7 @@ export function LogStream({ jobId }: Props) {
 
       <div
         onScroll={onScroll}
-        className="h-72 overflow-y-auto rounded-xl bg-[#0c100e] px-3 py-3 font-mono text-[12px] leading-5 sm:h-80"
+        className="h-72 overflow-y-auto rounded-lg bg-[#0c100e] px-3 py-3 font-mono text-[12px] leading-5 sm:h-80"
       >
         {lines.length === 0 ? (
           <p className="text-[#6a736c]">Waiting for log output…</p>
@@ -127,6 +126,6 @@ export function LogStream({ jobId }: Props) {
         )}
         <div ref={bottomRef} />
       </div>
-    </section>
+    </div>
   );
 }

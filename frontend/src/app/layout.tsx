@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Figtree, Fraunces } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
-import { ToastProvider } from "@/components/Toaster";
+import { Toaster } from "@/components/ui/sonner";
+import { cn } from "@/lib/utils";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -17,7 +18,7 @@ const figtree = Figtree({
 });
 
 export const metadata: Metadata = {
-  title: "Studio — Podcast Automation",
+  title: "Studio | Podcast Automation",
   description: "Create and manage AI podcast episodes",
 };
 
@@ -27,13 +28,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${figtree.variable} h-full`}>
+    <html
+      lang="en"
+      className={cn("h-full", fraunces.variable, figtree.variable)}
+    >
       <body className="relative min-h-full antialiased">
         <div className="relative z-10">
-          <ToastProvider>
-            <AppShell>{children}</AppShell>
-          </ToastProvider>
+          <AppShell>{children}</AppShell>
         </div>
+        <Toaster />
       </body>
     </html>
   );

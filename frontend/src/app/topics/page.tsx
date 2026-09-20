@@ -3,6 +3,7 @@
 import axios from "axios";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   approveTopic,
   createFocusArea,
@@ -16,8 +17,17 @@ import {
   updateTopic,
 } from "@/lib/api";
 import type { FocusArea, TopicItem } from "@/lib/types";
+import { topicSourceLabel } from "@/lib/labels";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useToast } from "@/components/Toaster";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
+import { PageSkeleton } from "@/components/layout/PageSkeleton";
+import { SectionCard } from "@/components/layout/SectionCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 function errMsg(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -28,17 +38,14 @@ function errMsg(err: unknown): string {
 }
 
 export default function TopicsPage() {
-  const { success, error: toastError, info } = useToast();
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [areas, setAreas] = useState<FocusArea[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [title, setTitle] = useState("");
   const [focusId, setFocusId] = useState<number | "">("");
   const [priority, setPriority] = useState(0);
   const [approveOnCreate, setApproveOnCreate] = useState(true);
   const [busy, setBusy] = useState(false);
-
   const [newArea, setNewArea] = useState("");
 
   const refresh = useCallback(async () => {
@@ -47,11 +54,11 @@ export default function TopicsPage() {
       setTopics(t);
       setAreas(a);
     } catch (e) {
-      toastError(errMsg(e));
+      toast.error(errMsg(e));
     } finally {
       setLoading(false);
     }
-  }, [toastError]);
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -71,10 +78,10 @@ export default function TopicsPage() {
       });
       setTitle("");
       setPriority(0);
-      success("Topic added to the queue.");
+      toast.success("Topic added to the queue");
       await refresh();
     } catch (e) {
-      toastError(errMsg(e));
+      toast.error(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -84,10 +91,10 @@ export default function TopicsPage() {
     setBusy(true);
     try {
       const result = await runNextTopic();
-      success(`Started “${result.topic}”`);
+      toast.success(`Started “${result.topic}”`);
       await refresh();
     } catch (e) {
-      toastError(errMsg(e));
+      toast.error(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -99,17 +106,19 @@ export default function TopicsPage() {
       const result = await runDiscovery(3);
       const n = result.created?.length ?? 0;
       if (n === 0) {
-        info(
+        toast.message(
           result.detail
-            ? `No topics suggested (${result.detail}).`
-            : "No new titles (all duplicates or empty).",
+            ? `No topics suggested (${result.detail.replaceAll("_", " ")})`
+            : "No new titles available. Existing drafts may already cover these focus areas.",
         );
       } else {
-        success(`Suggested ${n} topic(s) as ${result.inserted_status ?? "draft"}.`);
+        toast.success(
+          `Added ${n} suggested topic${n === 1 ? "" : "s"} as ${result.inserted_status ?? "draft"}`,
+        );
       }
       await refresh();
     } catch (e) {
-      toastError(errMsg(e));
+      toast.error(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -121,73 +130,75 @@ export default function TopicsPage() {
     try {
       await createFocusArea(newArea.trim());
       setNewArea("");
-      success("Focus area added.");
+      toast.success("Focus area added");
       await refresh();
     } catch (e) {
-      toastError(errMsg(e));
+      toast.error(errMsg(e));
     }
   }
 
   const approvedCount = topics.filter((t) => t.status === "approved").length;
   const enabledAreas = areas.filter((a) => a.enabled).length;
 
+  if (loading) {
+    return <PageSkeleton variant="wide" rows={5} />;
+  }
+
   return (
-    <div className="flex flex-col gap-10">
-      <section className="animate-rise flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-serif text-2xl tracking-tight text-ink sm:text-[1.75rem]">Topics</h1>
-          <p className="mt-1 text-sm text-muted">
-            Queue titles for the pipeline. Suggest from focus areas, approve, then
-            Run next — or let Automation refill when the queue is low.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={busy || enabledAreas === 0}
-            onClick={onSuggest}
-            className="rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            Suggest topics
-          </button>
-          <button
-            type="button"
-            disabled={busy || approvedCount === 0}
-            onClick={onRunNext}
-            className="rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow)] transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            Run next ({approvedCount})
-          </button>
-        </div>
-      </section>
+    <PageShell variant="wide">
+      <PageHeader
+        title="Topics"
+        description="Build a queue of episode titles. Suggest from focus areas, approve, then run the next item. Automation can refill the queue when it runs low."
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="rounded-md"
+              disabled={busy || enabledAreas === 0}
+              onClick={onSuggest}
+            >
+              Suggest topics
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              className="rounded-md"
+              disabled={busy || approvedCount === 0}
+              onClick={onRunNext}
+            >
+              Run next ({approvedCount})
+            </Button>
+          </>
+        }
+      />
 
-
-      <section className="animate-rise rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
-        <h2 className="font-serif text-xl text-ink">Add topic</h2>
-        <form onSubmit={onAddTopic} className="mt-5 flex flex-col gap-4">
-          <label className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-              Title
-            </span>
-            <input
+      <SectionCard
+        title="Add topic"
+        description="Create a title manually, or use Suggest topics after adding focus areas."
+      >
+        <form onSubmit={onAddTopic} className="flex flex-col gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="topic-title">Title</Label>
+            <Input
+              id="topic-title"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="How to sound more natural in English meetings"
-              className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
             />
-          </label>
+          </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                Focus area
-              </span>
+            <div className="space-y-2">
+              <Label htmlFor="focus-area">Focus area</Label>
               <select
+                id="focus-area"
                 value={focusId === "" ? "" : String(focusId)}
                 onChange={(e) =>
                   setFocusId(e.target.value ? Number(e.target.value) : "")
                 }
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="flex h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               >
                 <option value="">None</option>
                 {areas.map((a) => (
@@ -197,51 +208,45 @@ export default function TopicsPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                Priority
-              </span>
-              <input
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="priority">Priority</Label>
+              <Input
+                id="priority"
                 type="number"
                 value={priority}
                 onChange={(e) => setPriority(Number(e.target.value))}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
               />
-            </label>
-            <label className="flex items-end gap-2 pb-3 text-sm text-ink-soft">
-              <input
-                type="checkbox"
-                checked={approveOnCreate}
-                onChange={(e) => setApproveOnCreate(e.target.checked)}
-                className="h-4 w-4 accent-[var(--accent)]"
-              />
-              Approve immediately
-            </label>
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex w-full items-center justify-between gap-3 rounded-md border border-line bg-surface px-4 py-2.5 text-sm">
+                <span className="text-ink-soft">Approve immediately</span>
+                <Switch
+                  checked={approveOnCreate}
+                  onCheckedChange={setApproveOnCreate}
+                />
+              </label>
+            </div>
           </div>
           <div className="flex justify-end">
-            <button
+            <Button
               type="submit"
               disabled={busy || !title.trim()}
-              className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
+              className="rounded-md"
             >
               Add to queue
-            </button>
+            </Button>
           </div>
         </form>
-      </section>
+      </SectionCard>
 
-      <section className="animate-rise">
+      <section>
         <h2 className="mb-4 font-serif text-xl text-ink">Queue</h2>
-        {loading ? (
-          <p className="text-sm text-muted">Loading…</p>
-        ) : topics.length === 0 ? (
-          <div className="rounded-[var(--radius)] border border-dashed border-line bg-surface/70 px-6 py-12 text-center">
-            <p className="font-serif text-2xl text-ink">No topics yet</p>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-              Add a title above, approve it, then hit Run next.
-            </p>
-          </div>
+        {topics.length === 0 ? (
+          <EmptyState
+            title="No topics yet"
+            description="Add a title above, approve it, then hit Run next."
+          />
         ) : (
           <ul className="flex flex-col gap-3">
             {topics.map((t, i) => (
@@ -253,9 +258,9 @@ export default function TopicsPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="font-serif text-lg text-ink">{t.title}</p>
-                    <p className="mt-1 text-xs text-muted">
-                      {t.focus_area_name ?? "No focus area"} · priority {t.priority} ·{" "}
-                      {t.source}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t.focus_area_name ?? "No focus area"} · priority{" "}
+                      {t.priority} · {topicSourceLabel(t.source)}
                       {t.job_id ? (
                         <>
                           {" · "}
@@ -268,57 +273,61 @@ export default function TopicsPage() {
                         </>
                       ) : null}
                     </p>
-                    {t.error && (
+                    {t.error ? (
                       <p className="mt-2 text-xs text-[var(--danger)]">{t.error}</p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={t.status} />
-                    {t.status === "draft" && (
-                      <button
+                    {t.status === "draft" ? (
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={async () => {
                           try {
                             await approveTopic(t.id);
-                            success("Topic approved.");
+                            toast.success("Topic approved");
                             await refresh();
                           } catch (e) {
-                            toastError(errMsg(e));
+                            toast.error(errMsg(e));
                           }
                         }}
-                        className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold transition hover:border-accent hover:text-accent"
                       >
                         Approve
-                      </button>
-                    )}
-                    {(t.status === "approved" || t.status === "draft") && (
-                      <button
+                      </Button>
+                    ) : null}
+                    {t.status === "approved" || t.status === "draft" ? (
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={async () => {
                           await updateTopic(t.id, {
                             priority: t.priority + 1,
                           });
                           await refresh();
                         }}
-                        className="rounded-lg px-2 py-1.5 text-xs text-muted hover:text-ink"
-                        title="Bump priority"
                       >
-                        ↑ Priority
-                      </button>
-                    )}
-                    {!["queued", "running"].includes(t.status) && (
-                      <button
+                        Raise priority
+                      </Button>
+                    ) : null}
+                    {!["queued", "running"].includes(t.status) ? (
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                         onClick={async () => {
                           if (!confirm("Delete this topic?")) return;
                           await deleteTopic(t.id);
+                          toast.success("Topic deleted");
                           await refresh();
                         }}
-                        className="rounded-lg px-3 py-1.5 text-xs text-muted transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                       >
                         Delete
-                      </button>
-                    )}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </li>
@@ -327,58 +336,56 @@ export default function TopicsPage() {
         )}
       </section>
 
-      <section className="animate-rise rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
-        <h2 className="font-serif text-xl text-ink">Focus areas</h2>
-        <p className="mt-1 text-sm text-muted">
-          Themes used by Suggest topics / Automation refill (e.g. English speaking).
-        </p>
-        <form onSubmit={onAddArea} className="mt-4 flex gap-3">
-          <input
+      <SectionCard
+        title="Focus areas"
+        description="Themes used by Suggest topics and Automation refill (for example, English speaking)."
+      >
+        <form onSubmit={onAddArea} className="flex gap-3">
+          <Input
             value={newArea}
             onChange={(e) => setNewArea(e.target.value)}
             placeholder="New focus area"
-            className="flex-1 rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-accent"
+            className="flex-1"
           />
-          <button
-            type="submit"
-            className="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold transition hover:border-accent hover:text-accent"
-          >
+          <Button type="submit" variant="outline" className="rounded-md">
             Add
-          </button>
+          </Button>
         </form>
         <ul className="mt-4 flex flex-col gap-2">
           {areas.map((a) => (
             <li
               key={a.id}
-              className="flex items-center justify-between rounded-xl border border-line bg-paper/50 px-4 py-2.5 text-sm"
+              className="flex items-center justify-between rounded-md border border-line bg-surface px-4 py-2.5 text-sm"
             >
               <span>
                 {a.name}{" "}
-                <span className="text-xs text-muted">
-                  {a.enabled ? "" : "· disabled"}
-                </span>
+                {!a.enabled ? (
+                  <span className="text-xs text-muted-foreground">· disabled</span>
+                ) : null}
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-[var(--danger)]"
                 onClick={async () => {
                   try {
                     await deleteFocusArea(a.id);
                     await refresh();
                   } catch (e) {
-                    toastError(errMsg(e));
+                    toast.error(errMsg(e));
                   }
                 }}
-                className="text-xs text-muted hover:text-[var(--danger)]"
               >
                 Delete
-              </button>
+              </Button>
             </li>
           ))}
-          {areas.length === 0 && (
-            <li className="text-sm text-muted">No focus areas yet.</li>
-          )}
+          {areas.length === 0 ? (
+            <li className="text-sm text-muted-foreground">No focus areas yet.</li>
+          ) : null}
         </ul>
-      </section>
-    </div>
+      </SectionCard>
+    </PageShell>
   );
 }

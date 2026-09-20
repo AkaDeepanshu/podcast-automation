@@ -9,7 +9,15 @@ import {
   uploadAsset,
   type AppConfigResponse,
 } from "@/lib/api";
-import { useToast } from "@/components/Toaster";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
+import { FormSkeleton } from "@/components/layout/PageSkeleton";
+import { SectionCard } from "@/components/layout/SectionCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type FormState = {
   scriptGenerator: string;
@@ -158,12 +166,12 @@ function AssetUpload({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-paper/50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+    <div className="rounded-md border border-line bg-surface p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-3 flex items-end gap-4">
-        <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-md border border-line bg-surface">
           {exists ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -172,7 +180,7 @@ function AssetUpload({
               className="h-full w-full object-cover"
             />
           ) : (
-            <span className="px-2 text-center text-[11px] text-muted">No PNG</span>
+            <span className="px-2 text-center text-[11px] text-muted-foreground">No PNG</span>
           )}
         </div>
         <label className="cursor-pointer text-sm font-medium text-accent hover:text-accent-hover">
@@ -196,7 +204,6 @@ export default function ConfigPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { success, error: toastError } = useToast();
   const [assetBust, setAssetBust] = useState(Date.now());
 
   const load = useCallback(async () => {
@@ -206,7 +213,7 @@ export default function ConfigPage() {
       setBase(data);
       setForm(toForm(data));
     } catch {
-      toastError("Could not load config. Is the API running?");
+      toast.error("Could not load configuration. Confirm the API is running.");
     } finally {
       setLoading(false);
     }
@@ -224,17 +231,17 @@ export default function ConfigPage() {
     e.preventDefault();
     if (!base || !form) return;
     setSaving(true);
-            try {
+    try {
       const payload = applyForm(base, form);
       await saveAppConfig(payload);
       setBase(payload);
-      success("Saved. New episodes will use these settings.");
+      toast.success("Configuration saved. New episodes will use these settings.");
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const detail = err.response?.data?.detail;
-        toastError(typeof detail === "string" ? detail : err.message);
+        toast.error(typeof detail === "string" ? detail : err.message);
       } else {
-        toastError("Save failed");
+        toast.error("Could not save configuration");
       }
     } finally {
       setSaving(false);
@@ -242,32 +249,27 @@ export default function ConfigPage() {
   }
 
   if (loading || !form) {
-    return <p className="animate-rise text-sm text-muted">Loading config…</p>;
+    return <FormSkeleton />;
   }
 
   return (
-    <div className="animate-rise mx-auto max-w-3xl">
-      <div className="mb-8">
-        <h1 className="font-serif text-2xl sm:text-[1.75rem] text-ink">Config</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted">
-          Providers, episode shape, voices, and video assets — no more hand-editing YAML for
-          day-to-day use.
-        </p>
-      </div>
-
+    <PageShell variant="form">
+      <PageHeader
+        title="Config"
+        description="Manage providers, episode length, speaker voices, and video assets from here. Day-to-day changes no longer require editing YAML."
+      />
 
       <form onSubmit={onSubmit} className="flex flex-col gap-8">
-        <section className="rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
-          <h2 className="font-serif text-xl text-ink">Providers</h2>
+        <SectionCard title="Providers">
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-sm sm:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Script generator
               </span>
               <select
                 value={form.scriptGenerator}
                 onChange={(e) => update("scriptGenerator", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               >
                 {GENERATOR_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -277,34 +279,33 @@ export default function ConfigPage() {
               </select>
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Gemini model
               </span>
               <input
                 value={form.geminiModel}
                 onChange={(e) => update("geminiModel", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Groq model
               </span>
               <input
                 value={form.groqModel}
                 onChange={(e) => update("groqModel", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
           </div>
-        </section>
+        </SectionCard>
 
-        <section className="rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
-          <h2 className="font-serif text-xl text-ink">Episode shape</h2>
+        <SectionCard title="Episode shape">
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                Duration (minutes) — {form.duration}
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Duration: {form.duration} minutes
               </span>
               <input
                 type="range"
@@ -316,7 +317,7 @@ export default function ConfigPage() {
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Segments
               </span>
               <input
@@ -325,11 +326,11 @@ export default function ConfigPage() {
                 max={12}
                 value={form.segments}
                 onChange={(e) => update("segments", Number(e.target.value))}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Pause between turns (ms)
               </span>
               <input
@@ -338,11 +339,11 @@ export default function ConfigPage() {
                 max={2000}
                 value={form.pauseTurns}
                 onChange={(e) => update("pauseTurns", Number(e.target.value))}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Pause between segments (ms)
               </span>
               <input
@@ -351,85 +352,79 @@ export default function ConfigPage() {
                 max={3000}
                 value={form.pauseSegments}
                 onChange={(e) => update("pauseSegments", Number(e.target.value))}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
             <label className="flex flex-col gap-2 text-sm sm:col-span-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Forbidden phrases (one per line)
               </span>
               <textarea
                 rows={5}
                 value={form.forbidden}
                 onChange={(e) => update("forbidden", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 font-mono text-xs outline-none focus:border-accent"
+                className="min-h-24 w-full rounded-md border border-line bg-surface px-3 py-2 font-mono text-xs outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
           </div>
-        </section>
+        </SectionCard>
 
-        <section className="rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
-          <h2 className="font-serif text-xl text-ink">Voices</h2>
+        <SectionCard title="Voices">
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Speaker A name
               </span>
               <input
                 value={form.speakerAName}
                 onChange={(e) => update("speakerAName", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Speaker A Kokoro voice
               </span>
               <input
                 value={form.speakerAVoice}
                 onChange={(e) => update("speakerAVoice", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Speaker B name
               </span>
               <input
                 value={form.speakerBName}
                 onChange={(e) => update("speakerBName", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Speaker B Kokoro voice
               </span>
               <input
                 value={form.speakerBVoice}
                 onChange={(e) => update("speakerBVoice", e.target.value)}
-                className="rounded-xl border border-line bg-paper px-4 py-3 outline-none focus:border-accent"
+                className="h-10 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none transition-colors hover:border-ink/20 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
             </label>
           </div>
-        </section>
+        </SectionCard>
 
         <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-xl bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
-          >
+          <Button type="submit" disabled={saving} size="lg" className="rounded-md">
             {saving ? "Saving…" : "Save config"}
-          </button>
+          </Button>
         </div>
       </form>
 
-      <section className="mt-10 rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
-        <h2 className="font-serif text-xl text-ink">Video assets</h2>
-        <p className="mt-1 text-sm text-muted">
-          Optional PNGs for the video stage. Missing assets use placeholders.
-        </p>
+      <SectionCard
+        title="Video assets"
+        description="Optional PNG assets for the video stage. Missing files fall back to placeholders."
+      >
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
           <AssetUpload
             name="speaker_a"
@@ -450,7 +445,7 @@ export default function ConfigPage() {
             onUploaded={() => setAssetBust(Date.now())}
           />
         </div>
-      </section>
-    </div>
+      </SectionCard>
+    </PageShell>
   );
 }

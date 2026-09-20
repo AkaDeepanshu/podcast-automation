@@ -1,92 +1,50 @@
-# =============================================================================
-# Podcast Automation — Main Config
-# =============================================================================
-# This file controls which providers are active and how generation behaves.
-# Switching from free -> paid later = change the "active" values below.
-# Nothing else in the codebase needs to change.
-
 providers:
-  script_generator: "fallback_chain"  # options: "gemini", "groq", "fallback_chain" (tries each in order)
-  tts_engine: "kokoro"                # options: "kokoro" (later: "elevenlabs")
-
-# -----------------------------------------------------------------------------
-# Script generation settings
-# -----------------------------------------------------------------------------
+  script_generator: fallback_chain
+  tts_engine: kokoro
 script_generation:
-  # Order matters: tried first-to-last. Once one succeeds, the run sticks
-  # with it (keeps voice/style consistent within one episode). Only used
-  # when providers.script_generator is "fallback_chain".
   fallback_chain:
-    - "gemini"
-    - "gemini_lite"
-    - "groq"
-
+  - gemini
+  - gemini_lite
+  - groq
   gemini:
-    model: "gemini-2.5-flash"     # good free-tier price/performance for structured dialogue gen
-                                   # NOTE: gemini-2.0-flash was deprecated/shut down (zero free quota now)
-                                   # fallback options if rate-limited: "gemini-2.5-flash-lite" (higher free RPD)
-                                   # or "gemini-2.5-pro" (higher quality, lower free RPD)
-    temperature: 1.0              # higher = more natural/varied dialogue, less robotic repetition
+    model: gemini-2.5-flash
+    temperature: 1
     max_output_tokens: 8192
-    # Soft daily-call budget for the PRE-CHECK (see provider_usage_tracker.py).
-    # Set this to your actual observed RPD from https://aistudio.google.com/rate-limit
-    # (yours showed 20 at time of writing). 0 = disable pre-check, rely only
-    # on reacting to live 429s. Keep a little under your real cap since this
-    # is a local estimate, not authoritative.
     daily_limit: 18
-
   gemini_lite:
-    model: "gemini-2.5-flash-lite"  # same Gemini infra, higher free RPD; used when flash is overloaded/quota-hit
-    temperature: 1.0
+    model: gemini-2.5-flash-lite
+    temperature: 1
     max_output_tokens: 8192
-    daily_limit: 0                  # separate quota pool from flash — disable pre-check by default
-
+    daily_limit: 0
   groq:
-    model: "openai/gpt-oss-20b"     # supports Groq Structured Outputs (json_schema); see console.groq.com/docs/structured-outputs
-    temperature: 1.0
+    model: openai/gpt-oss-20b
+    temperature: 1
     max_output_tokens: 8192
-    daily_limit: 0                    # Groq's free RPD is much higher than Gemini's — disable pre-check by default
-    # json_schema = schema-enforced (requires a Structured Outputs model)
-    # json_object = valid JSON only (works on llama-3.3-70b-versatile etc., less reliable)
-    # auto = try json_schema first, downgrade to json_object if the model rejects json_schema
-    structured_output_mode: "json_schema"
-
-  # Episode shape
+    daily_limit: 0
+    structured_output_mode: json_schema
   target_duration_minutes: 30
-  num_segments: 6                 # script generated in chunks of ~5 min each
-  words_per_minute: 150           # used to estimate target word count per segment (spoken pace)
-
-  # Anti-repetition safeguards
+  num_segments: 6
+  words_per_minute: 150
   max_retries_per_segment: 3
-  forbidden_phrases:               # phrases the model tends to overuse — checked post-generation
-    - "that's such a great point"
-    - "absolutely"
-    - "i couldn't agree more"
-    - "great question"
-
-# -----------------------------------------------------------------------------
-# TTS settings
-# -----------------------------------------------------------------------------
+  forbidden_phrases:
+  - that's such a great point
+  - absolutely
+  - i couldn't agree more
+  - great question
 tts:
   kokoro:
     sample_rate: 24000
-    speed: 1.0
-    lang_code: "a"                # "a" = American English (see kokoro docs for other langs)
-
-  # Pause durations inserted during audio assembly (stage 3)
+    speed: 1
+    lang_code: a
   pause_between_turns_ms: 400
   pause_between_segments_ms: 900
-
-# -----------------------------------------------------------------------------
-# Video settings
-# -----------------------------------------------------------------------------
 video:
   subtitle_font_size: 52
-  font_path: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-  crf: 23                 # H.264 quality (18=near-lossless, 28=smaller file, 23=good default)
+  font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+  crf: 23
 paths:
-  jobs_dir: "data/jobs"
-  state_db: "data/state/jobs.db"
-  usage_db: "data/state/provider_usage.db"
-  logs_dir: "data/logs"
-  assets_dir: "data/assets"
+  jobs_dir: data/jobs
+  state_db: data/state/jobs.db
+  usage_db: data/state/provider_usage.db
+  logs_dir: data/logs
+  assets_dir: data/assets

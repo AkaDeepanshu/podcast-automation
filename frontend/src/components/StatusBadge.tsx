@@ -1,53 +1,54 @@
-const STYLES: Record<string, { label: string; bg: string; fg: string; pulse?: boolean }> = {
-  pending: { label: "Pending", bg: "var(--accent-soft)", fg: "var(--accent)" },
-  draft: { label: "Draft", bg: "var(--paper-deep)", fg: "var(--muted)" },
-  approved: { label: "Approved", bg: "var(--accent-soft)", fg: "var(--accent)" },
-  queued: { label: "Queued", bg: "var(--running-soft)", fg: "var(--running)" },
-  running: {
-    label: "Running",
-    bg: "var(--running-soft)",
-    fg: "var(--running)",
-    pulse: true,
-  },
-  in_progress: {
-    label: "Running",
-    bg: "var(--running-soft)",
-    fg: "var(--running)",
-    pulse: true,
-  },
-  done: { label: "Done", bg: "var(--ok-soft)", fg: "var(--ok)" },
-  completed: { label: "Completed", bg: "var(--ok-soft)", fg: "var(--ok)" },
-  completed_with_warnings: {
-    label: "Warnings",
-    bg: "var(--warn-soft)",
-    fg: "var(--warn)",
-  },
-  failed: { label: "Failed", bg: "var(--danger-soft)", fg: "var(--danger)" },
-  skipped: { label: "Skipped", bg: "var(--paper-deep)", fg: "var(--muted)" },
+import { Badge } from "@/components/ui/badge";
+import { jobStatusLabel, topicStatusLabel } from "@/lib/labels";
+import { cn } from "@/lib/utils";
+
+const TONE: Record<string, string> = {
+  pending: "border-transparent bg-[var(--accent-soft)] text-accent",
+  draft: "border-transparent bg-paper-deep text-muted-foreground",
+  approved: "border-transparent bg-[var(--accent-soft)] text-accent",
+  queued: "border-transparent bg-[var(--running-soft)] text-[var(--running)]",
+  running: "border-transparent bg-[var(--running-soft)] text-[var(--running)]",
+  in_progress:
+    "border-transparent bg-[var(--running-soft)] text-[var(--running)]",
+  done: "border-transparent bg-[var(--ok-soft)] text-[var(--ok)]",
+  completed: "border-transparent bg-[var(--ok-soft)] text-[var(--ok)]",
+  completed_with_warnings:
+    "border-transparent bg-[var(--warn-soft)] text-[var(--warn)]",
+  failed: "border-transparent bg-[var(--danger-soft)] text-[var(--danger)]",
+  skipped: "border-transparent bg-paper-deep text-muted-foreground",
 };
 
+const TOPIC_STATUSES = new Set([
+  "draft",
+  "approved",
+  "queued",
+  "running",
+  "done",
+  "skipped",
+]);
+
 export function StatusBadge({ status }: { status: string }) {
-  const style = STYLES[status] ?? {
-    label: status,
-    bg: "var(--paper-deep)",
-    fg: "var(--muted)",
-  };
+  const pulse = status === "running" || status === "in_progress";
+  const label = TOPIC_STATUSES.has(status)
+    ? topicStatusLabel(status)
+    : jobStatusLabel(status);
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold tracking-wide ${
-        style.pulse ? "animate-pulse-soft" : ""
-      }`}
-      style={{ background: style.bg, color: style.fg }}
+    <Badge
+      variant="outline"
+      className={cn(
+        "gap-1.5 font-semibold tracking-wide",
+        TONE[status] ?? "border-transparent bg-paper-deep text-muted-foreground",
+        pulse && "animate-pulse-soft",
+      )}
     >
-      {style.pulse && (
+      {pulse ? (
         <span
-          className="h-1.5 w-1.5 rounded-full"
-          style={{ background: style.fg }}
+          className="h-1.5 w-1.5 rounded-full bg-current"
           aria-hidden
         />
-      )}
-      {style.label}
-    </span>
+      ) : null}
+      {label}
+    </Badge>
   );
 }
