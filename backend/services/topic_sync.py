@@ -18,7 +18,10 @@ def sync_topic_for_job(job_id: str, error: str | None = None) -> None:
     """
     Update any Topic linked to job_id from the authoritative JobStateDB status.
     completed / completed_with_warnings → done; failed → failed.
+    Releases the automation Redis lock when the topic leaves running.
     """
+    from backend import locks
+
     config = load_config()
     state = JobStateDB(str(PROJECT_ROOT / config["paths"]["state_db"]))
     job = state.get_job(job_id)
@@ -30,17 +33,20 @@ def sync_topic_for_job(job_id: str, error: str | None = None) -> None:
     try:
         topic = db.query(Topic).filter(Topic.job_id == job_id).first()
         if not topic:
+            if job_status in ("completed", "completed_with_warnings", "failed"):
+                locks.release()
             return
 
         now = _now()
         if job_status in ("completed", "completed_with_warnings"):
             topic.status = "done"
             topic.error = None
+            locks.release()
         elif job_status == "failed":
             topic.status = "failed"
             topic.error = error or "job_failed"
+            locks.release()
         else:
-            # Still running / pending — leave topic as running
             return
 
         topic.updated_at = now

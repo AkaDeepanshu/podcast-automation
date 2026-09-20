@@ -9,6 +9,7 @@ import {
   uploadAsset,
   type AppConfigResponse,
 } from "@/lib/api";
+import { useToast } from "@/components/Toaster";
 
 type FormState = {
   scriptGenerator: string;
@@ -195,19 +196,17 @@ export default function ConfigPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { success, error: toastError } = useToast();
   const [assetBust, setAssetBust] = useState(Date.now());
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    try {
+        try {
       const data = await getAppConfig();
       setBase(data);
       setForm(toForm(data));
     } catch {
-      setError("Could not load config. Is the API running?");
+      toastError("Could not load config. Is the API running?");
     } finally {
       setLoading(false);
     }
@@ -225,19 +224,17 @@ export default function ConfigPage() {
     e.preventDefault();
     if (!base || !form) return;
     setSaving(true);
-    setMessage(null);
-    setError(null);
-    try {
+            try {
       const payload = applyForm(base, form);
       await saveAppConfig(payload);
       setBase(payload);
-      setMessage("Saved. New episodes will use these settings.");
+      success("Saved. New episodes will use these settings.");
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const detail = err.response?.data?.detail;
-        setError(typeof detail === "string" ? detail : err.message);
+        toastError(typeof detail === "string" ? detail : err.message);
       } else {
-        setError("Save failed");
+        toastError("Save failed");
       }
     } finally {
       setSaving(false);
@@ -251,23 +248,13 @@ export default function ConfigPage() {
   return (
     <div className="animate-rise mx-auto max-w-3xl">
       <div className="mb-8">
-        <h1 className="font-serif text-3xl text-ink">Config</h1>
+        <h1 className="font-serif text-2xl sm:text-[1.75rem] text-ink">Config</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           Providers, episode shape, voices, and video assets — no more hand-editing YAML for
           day-to-day use.
         </p>
       </div>
 
-      {error && (
-        <p className="mb-4 rounded-xl bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">
-          {error}
-        </p>
-      )}
-      {message && (
-        <p className="mb-4 rounded-xl bg-[var(--ok-soft)] px-4 py-3 text-sm text-[var(--ok)]">
-          {message}
-        </p>
-      )}
 
       <form onSubmit={onSubmit} className="flex flex-col gap-8">
         <section className="rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">

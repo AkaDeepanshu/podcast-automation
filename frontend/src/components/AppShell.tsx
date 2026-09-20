@@ -2,54 +2,88 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const NAV = [
   { href: "/", label: "Episodes" },
   { href: "/topics", label: "Topics" },
+  { href: "/automation", label: "Automation" },
   { href: "/config", label: "Config" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setCompact(window.scrollY > 16);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 pb-16 pt-8 sm:px-8">
-      <header className="animate-rise mb-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-accent">
-            Podcast Automation
-          </p>
-          <Link href="/" className="font-serif text-4xl tracking-tight text-ink sm:text-5xl">
-            Studio
+    <div className="min-h-screen w-full">
+      <header
+        className={`fixed inset-x-0 top-0 z-40 border-b transition-[padding,background-color,border-color,box-shadow] duration-300 ease-out ${
+          compact
+            ? "border-line/80 bg-surface/90 py-2 shadow-[0_8px_30px_rgba(22,27,24,0.06)] backdrop-blur-xl"
+            : "border-transparent bg-transparent py-4 backdrop-blur-0"
+        }`}
+      >
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+          <Link href="/" className="group min-w-0">
+            <p
+              className={`font-semibold uppercase tracking-[0.2em] text-accent transition-all duration-300 ${
+                compact ? "mb-0 h-0 overflow-hidden text-[9px] opacity-0" : "mb-1 text-[10px]"
+              }`}
+            >
+              Podcast Automation
+            </p>
+            <span
+              className={`block font-serif tracking-tight text-ink transition-all duration-300 ${
+                compact ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"
+              }`}
+            >
+              Studio
+            </span>
           </Link>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
-            Script, voice, and assemble episodes from one place.
-          </p>
+
+          <nav
+            className={`flex shrink-0 items-center rounded-full border border-line/70 bg-surface/75 p-1 shadow-[var(--shadow)] backdrop-blur-md transition-all duration-300 ${
+              compact ? "scale-[0.97]" : ""
+            }`}
+          >
+            {NAV.map((item) => {
+              const active =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-3.5 sm:text-sm ${
+                    active
+                      ? "bg-accent text-white shadow-sm"
+                      : "text-muted hover:bg-paper-deep/80 hover:text-ink"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-        <nav className="flex items-center gap-1 border-b border-line pb-px">
-          {NAV.map((item) => {
-            const active =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`relative px-4 py-2 text-sm transition-colors ${
-                  active ? "text-ink" : "text-muted hover:text-ink-soft"
-                }`}
-              >
-                {item.label}
-                {active && (
-                  <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-accent" />
-                )}
-              </Link>
-            );
-          })}
-        </nav>
       </header>
-      <main className="flex-1">{children}</main>
+
+      <div
+        className={`mx-auto flex w-full max-w-6xl flex-col px-5 pb-20 sm:px-8 transition-[padding] duration-300 ${
+          compact ? "pt-16" : "pt-24 sm:pt-28"
+        }`}
+      >
+        <main className="flex-1">{children}</main>
+      </div>
     </div>
   );
 }

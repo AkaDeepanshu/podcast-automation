@@ -7,6 +7,7 @@ import { deleteJob, listJobs } from "@/lib/api";
 import type { JobSummary } from "@/lib/types";
 import { NewEpisodeForm } from "@/components/NewEpisodeForm";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useToast } from "@/components/Toaster";
 
 function formatDate(iso: string) {
   try {
@@ -23,22 +24,21 @@ function formatDate(iso: string) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { success, error: toastError } = useToast();
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       const data = await listJobs();
       setJobs(data);
-      setError(null);
     } catch {
-      setError("Can’t reach the API. Is uvicorn running on port 8000?");
+      toastError("Can’t reach the API. Is uvicorn running on port 8000?");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toastError]);
 
   useEffect(() => {
     refresh();
@@ -48,15 +48,22 @@ export default function DashboardPage() {
 
   async function onDelete(jobId: string) {
     if (!confirm(`Delete episode “${jobId}”? This removes outputs too.`)) return;
-    await deleteJob(jobId);
-    await refresh();
+    try {
+      await deleteJob(jobId);
+      success("Episode deleted.");
+      await refresh();
+    } catch {
+      toastError("Failed to delete episode.");
+    }
   }
 
   return (
     <div>
       <section className="animate-rise mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-ink">Episodes</h1>
+          <h1 className="font-serif text-2xl tracking-tight text-ink sm:text-[1.75rem]">
+            Episodes
+          </h1>
           <p className="mt-1 text-sm text-muted">
             {loading ? "Loading…" : `${jobs.length} episode${jobs.length === 1 ? "" : "s"}`}
           </p>
@@ -64,20 +71,14 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow)] transition hover:bg-accent-hover"
+          className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow)] transition hover:bg-accent-hover"
         >
           New episode
         </button>
       </section>
 
-      {error && (
-        <div className="mb-6 rounded-[var(--radius)] border border-line bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">
-          {error}
-        </div>
-      )}
-
-      {!loading && jobs.length === 0 && !error && (
-        <div className="animate-rise rounded-[var(--radius)] border border-dashed border-line bg-surface/70 px-6 py-16 text-center">
+      {!loading && jobs.length === 0 && (
+        <div className="animate-rise rounded-[var(--radius)] border border-dashed border-line bg-surface/70 px-6 py-14 text-center">
           <p className="font-serif text-2xl text-ink">No episodes yet</p>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
             Start with a topic. Studio will queue script, voice, and assembly in the background.
@@ -126,6 +127,7 @@ export default function DashboardPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreated={(jobId) => {
+          success("Episode queued.");
           refresh();
           router.push(`/episodes/${jobId}`);
         }}

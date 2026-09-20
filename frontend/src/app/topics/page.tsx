@@ -11,11 +11,13 @@ import {
   deleteTopic,
   listFocusAreas,
   listTopics,
+  runDiscovery,
   runNextTopic,
   updateTopic,
 } from "@/lib/api";
 import type { FocusArea, TopicItem } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useToast } from "@/components/Toaster";
 
 function errMsg(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -26,11 +28,10 @@ function errMsg(err: unknown): string {
 }
 
 export default function TopicsPage() {
+  const { success, error: toastError, info } = useToast();
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [areas, setAreas] = useState<FocusArea[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [focusId, setFocusId] = useState<number | "">("");
@@ -45,13 +46,12 @@ export default function TopicsPage() {
       const [t, a] = await Promise.all([listTopics(), listFocusAreas()]);
       setTopics(t);
       setAreas(a);
-      setError(null);
     } catch (e) {
-      setError(errMsg(e));
+      toastError(errMsg(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toastError]);
 
   useEffect(() => {
     refresh();
@@ -62,7 +62,6 @@ export default function TopicsPage() {
   async function onAddTopic(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setMessage(null);
     try {
       await createTopic({
         title: title.trim(),
@@ -72,10 +71,10 @@ export default function TopicsPage() {
       });
       setTitle("");
       setPriority(0);
-      setMessage("Topic added to the queue.");
+      success("Topic added to the queue.");
       await refresh();
     } catch (e) {
-      setError(errMsg(e));
+      toastError(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -83,14 +82,34 @@ export default function TopicsPage() {
 
   async function onRunNext() {
     setBusy(true);
-    setMessage(null);
-    setError(null);
     try {
       const result = await runNextTopic();
-      setMessage(`Started “${result.topic}” → job ${result.job_id}`);
+      success(`Started “${result.topic}”`);
       await refresh();
     } catch (e) {
-      setError(errMsg(e));
+      toastError(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSuggest() {
+    setBusy(true);
+    try {
+      const result = await runDiscovery(3);
+      const n = result.created?.length ?? 0;
+      if (n === 0) {
+        info(
+          result.detail
+            ? `No topics suggested (${result.detail}).`
+            : "No new titles (all duplicates or empty).",
+        );
+      } else {
+        success(`Suggested ${n} topic(s) as ${result.inserted_status ?? "draft"}.`);
+      }
+      await refresh();
+    } catch (e) {
+      toastError(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -102,49 +121,46 @@ export default function TopicsPage() {
     try {
       await createFocusArea(newArea.trim());
       setNewArea("");
+      success("Focus area added.");
       await refresh();
     } catch (e) {
-      setError(errMsg(e));
+      toastError(errMsg(e));
     }
   }
 
   const approvedCount = topics.filter((t) => t.status === "approved").length;
+  const enabledAreas = areas.filter((a) => a.enabled).length;
 
   return (
     <div className="flex flex-col gap-10">
       <section className="animate-rise flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-ink">Topics</h1>
+          <h1 className="font-serif text-2xl tracking-tight text-ink sm:text-[1.75rem]">Topics</h1>
           <p className="mt-1 text-sm text-muted">
-            Queue titles for the pipeline. Approve, then Run next (or wait for the
-            scheduler in Phase 2).
+            Queue titles for the pipeline. Suggest from focus areas, approve, then
+            Run next — or let Automation refill when the queue is low.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={busy || approvedCount === 0}
-          onClick={onRunNext}
-          className="rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow)] transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          Run next ({approvedCount})
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy || enabledAreas === 0}
+            onClick={onSuggest}
+            className="rounded-xl border border-line px-5 py-3 text-sm font-semibold transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            Suggest topics
+          </button>
+          <button
+            type="button"
+            disabled={busy || approvedCount === 0}
+            onClick={onRunNext}
+            className="rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow)] transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            Run next ({approvedCount})
+          </button>
+        </div>
       </section>
 
-      {error && (
-        <p className="rounded-[var(--radius)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">
-          {error}
-        </p>
-      )}
-      {message && (
-        <p className="rounded-[var(--radius)] bg-[var(--ok-soft)] px-4 py-3 text-sm text-[var(--ok)]">
-          {message}{" "}
-          {message.includes("job ") && (
-            <Link href="/" className="font-medium underline">
-              View episodes
-            </Link>
-          )}
-        </p>
-      )}
 
       <section className="animate-rise rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
         <h2 className="font-serif text-xl text-ink">Add topic</h2>
@@ -262,8 +278,13 @@ export default function TopicsPage() {
                       <button
                         type="button"
                         onClick={async () => {
-                          await approveTopic(t.id);
-                          await refresh();
+                          try {
+                            await approveTopic(t.id);
+                            success("Topic approved.");
+                            await refresh();
+                          } catch (e) {
+                            toastError(errMsg(e));
+                          }
                         }}
                         className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold transition hover:border-accent hover:text-accent"
                       >
@@ -309,7 +330,7 @@ export default function TopicsPage() {
       <section className="animate-rise rounded-[var(--radius)] border border-line bg-surface/90 p-5 shadow-[var(--shadow)] sm:p-6">
         <h2 className="font-serif text-xl text-ink">Focus areas</h2>
         <p className="mt-1 text-sm text-muted">
-          Optional themes for discovery later (e.g. English speaking, mindset).
+          Themes used by Suggest topics / Automation refill (e.g. English speaking).
         </p>
         <form onSubmit={onAddArea} className="mt-4 flex gap-3">
           <input
@@ -344,7 +365,7 @@ export default function TopicsPage() {
                     await deleteFocusArea(a.id);
                     await refresh();
                   } catch (e) {
-                    setError(errMsg(e));
+                    toastError(errMsg(e));
                   }
                 }}
                 className="text-xs text-muted hover:text-[var(--danger)]"

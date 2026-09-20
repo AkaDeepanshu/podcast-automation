@@ -72,3 +72,18 @@ export type RunNextResult = {
   task_id: string;
   status: string;
 };
+
+export type AutomationSettings = {
+  enabled: boolean;
+  require_approval: boolean;
+  min_queue_depth: number;
+  interval_minutes: number;
+  timezone: string;
+  default_skip_video: boolean;
+  last_tick_at: string | null;
+  last_run_at: string | null;
+  last_run_job_id: string | null;
+  last_error: string | null;
+  lock_held: boolean;
+  approved_queue_depth: number;
+};

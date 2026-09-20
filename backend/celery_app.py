@@ -26,6 +26,13 @@ celery_app.conf.update(
     # Pipeline jobs are long-running (TTS/video); don't soft-time them out.
     task_time_limit=None,
     worker_prefetch_multiplier=1,
+    beat_schedule={
+        # Checks settings.enabled + interval; cheap no-op when idle.
+        "automation-tick": {
+            "task": "backend.tasks.automation_tick",
+            "schedule": 60.0,  # every 60 seconds
+        },
+    },
 )
 
 logger = logging.getLogger(__name__)

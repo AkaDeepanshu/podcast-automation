@@ -53,7 +53,7 @@ export function NewEpisodeForm({ open, onClose, onCreated }: Props) {
 
   return (
     <div
-      className="animate-backdrop fixed inset-0 z-50 flex items-end justify-center bg-[rgba(22,27,24,0.45)] p-4 backdrop-blur-sm sm:items-center"
+      className="animate-backdrop fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(22,27,24,0.45)] p-4 backdrop-blur-sm sm:items-center"
       onClick={onClose}
       role="presentation"
     >

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Figtree, Fraunces } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
+import { ToastProvider } from "@/components/Toaster";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -29,7 +30,9 @@ export default function RootLayout({
     <html lang="en" className={`${fraunces.variable} ${figtree.variable} h-full`}>
       <body className="relative min-h-full antialiased">
         <div className="relative z-10">
-          <AppShell>{children}</AppShell>
+          <ToastProvider>
+            <AppShell>{children}</AppShell>
+          </ToastProvider>
         </div>
       </body>
     </html>

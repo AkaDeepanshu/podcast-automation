@@ -1,5 +1,6 @@
 import axios from "axios";
 import type {
+  AutomationSettings,
   FocusArea,
   JobCreatePayload,
   JobCreated,
@@ -175,6 +176,70 @@ export async function createFocusArea(name: string): Promise<FocusArea> {
 
 export async function deleteFocusArea(id: number): Promise<void> {
   await api.delete(`/api/focus-areas/${id}`);
+}
+
+export async function getAutomation(): Promise<AutomationSettings> {
+  const { data } = await api.get<AutomationSettings>("/api/automation");
+  return data;
+}
+
+export async function saveAutomation(
+  payload: Partial<AutomationSettings>,
+): Promise<AutomationSettings> {
+  const { data } = await api.put<AutomationSettings>("/api/automation", payload);
+  return data;
+}
+
+export async function startAutomation(): Promise<AutomationSettings> {
+  const { data } = await api.post<AutomationSettings>("/api/automation/start");
+  return data;
+}
+
+export async function stopAutomation(): Promise<AutomationSettings> {
+  const { data } = await api.post<AutomationSettings>("/api/automation/stop");
+  return data;
+}
+
+export async function runAutomationNow(): Promise<RunNextResult> {
+  const { data } = await api.post<RunNextResult>("/api/automation/run-now");
+  return data;
+}
+
+export type NotificationStatus = {
+  telegram_configured: boolean;
+};
+
+export async function getNotificationStatus(): Promise<NotificationStatus> {
+  const { data } = await api.get<NotificationStatus>("/api/notifications/status");
+  return data;
+}
+
+export async function testNotification(): Promise<{ status: string; event: string }> {
+  const { data } = await api.post<{ status: string; event: string }>(
+    "/api/notifications/test",
+  );
+  return data;
+}
+
+export type DiscoveryResult = {
+  status: string;
+  created: Array<{
+    id?: number;
+    title: string;
+    focus_area?: string;
+    status?: string;
+  }>;
+  inserted_status?: string | null;
+  detail?: string | null;
+  task_id?: string | null;
+};
+
+export async function runDiscovery(perArea = 3): Promise<DiscoveryResult> {
+  const { data } = await api.post<DiscoveryResult>("/api/discovery/run", {
+    per_area: perArea,
+    async_run: false,
+  });
+  return data;
 }
 
 export default api;

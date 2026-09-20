@@ -112,3 +112,27 @@ class RunNextResult(BaseModel):
     topic: str
     task_id: str
     status: str
+
+
+class AutomationSettingsOut(BaseModel):
+    enabled: bool
+    require_approval: bool
+    min_queue_depth: int
+    interval_minutes: int
+    timezone: str
+    default_skip_video: bool
+    last_tick_at: str | None
+    last_run_at: str | None
+    last_run_job_id: str | None
+    last_error: str | None
+    lock_held: bool = False
+    approved_queue_depth: int = 0
+
+
+class AutomationSettingsUpdate(BaseModel):
+    enabled: bool | None = None
+    require_approval: bool | None = None
+    min_queue_depth: int | None = None
+    interval_minutes: int | None = None
+    timezone: str | None = None
+    default_skip_video: bool | None = None

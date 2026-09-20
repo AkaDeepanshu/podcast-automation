@@ -104,6 +104,25 @@ class Topic(Base):
     focus_area: Mapped["FocusArea | None"] = relationship(back_populates="topics")
 
 
+class AutomationSettings(Base):
+    """Singleton row (id=1) for scheduler / automation control."""
+
+    __tablename__ = "automation_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    require_approval: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    min_queue_depth: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    # Minimum minutes between successful starts when Beat is ticking.
+    interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=1440)
+    timezone: Mapped[str] = mapped_column(String, nullable=False, default="UTC")
+    default_skip_video: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_tick_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_run_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_run_job_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class ProviderUsage:
     """
     Schema mirror of data/state/provider_usage.db (separate SQLite file).

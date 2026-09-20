@@ -25,6 +25,7 @@ def enqueue_job(
     skip_video: bool = True,
     config: EpisodeConfigIn | None = None,
     dispatch: bool = True,
+    notify_source: str = "manual",
 ) -> JobCreated:
     """
     Insert Job + EpisodeConfig, optionally dispatch Celery.
@@ -68,6 +69,9 @@ def enqueue_job(
                 status_code=503,
                 detail=f"Job created but Celery dispatch failed: {exc}",
             ) from exc
+        from backend.notify.events import notify_job_started
+
+        notify_job_started(resolved_id, topic, source=notify_source)
 
     return JobCreated(
         job_id=resolved_id,
